@@ -19,6 +19,7 @@ import {
   ClipboardList,
   FileText,
   Flag,
+  GraduationCap,
   HelpCircle,
   LayoutDashboard,
   Layers,
@@ -60,11 +61,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Content",
     items: [
+      { label: "Exams", href: "/admin/exams", icon: GraduationCap },
+      { label: "Subjects", href: "/admin/subjects", icon: Layers },
+      { label: "Topics", href: "/admin/topics", icon: BookOpen },
+      { label: "Questions", href: "/admin/questions", icon: HelpCircle },
       { label: "Tests", href: "/admin/tests", icon: ClipboardList },
       { label: "Sections", href: "/admin/sections", icon: Layers },
-      { label: "Topics", href: "/admin/topics", icon: BookOpen },
       { label: "Lessons", href: "/admin/lessons", icon: FileText },
-      { label: "Questions", href: "/admin/questions", icon: HelpCircle },
       { label: "Mock Tests", href: "/admin/mock-tests", icon: Timer },
     ],
   },

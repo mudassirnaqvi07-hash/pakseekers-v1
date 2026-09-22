@@ -1,163 +1,149 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlusCircle, FileEdit, HelpCircle, ExternalLink } from "lucide-react";
+import { PlusCircle, FileEdit, BookOpen, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Badge, Button } from "@/components/ui";
 import {
-  getAllTopics,
+  getAllSubjects,
   getAllExams,
-  getSubjectById,
   getExamById,
 } from "@/server/repositories/content-repository";
-import { deleteTopicAction } from "@/server/actions/content-actions";
+import { deleteSubjectAction } from "@/server/actions/content-actions";
 import { DeleteConfirmButton } from "@/features/admin/components/delete-confirm-button";
 
 export const metadata: Metadata = {
-  title: "Topics Management | PakSeekers Admin",
+  title: "Subjects Management | PakSeekers Admin",
 };
 
-interface AdminTopicsPageProps {
-  searchParams: Promise<{ examId?: string; subjectId?: string }>;
+interface AdminSubjectsPageProps {
+  searchParams: Promise<{ examId?: string }>;
 }
 
-export default async function AdminTopicsPage({
+export default async function AdminSubjectsPage({
   searchParams,
-}: AdminTopicsPageProps) {
-  const { examId, subjectId } = await searchParams;
+}: AdminSubjectsPageProps) {
+  const { examId } = await searchParams;
   const exams = getAllExams();
-  const topics = getAllTopics(subjectId, examId);
+  const subjects = getAllSubjects(examId);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <PageHeader
-          title="Topics Management"
-          description="Manage granular syllabus topics that group multiple-choice questions into practice modules."
+          title="Subjects Management"
+          description="Manage academic subject disciplines belonging to entrance examination tracks."
         />
-        <Link
-          href={
-            subjectId
-              ? `/admin/topics/new?subjectId=${subjectId}&examId=${examId || ""}`
-              : "/admin/topics/new"
-          }
-        >
+        <Link href={examId ? `/admin/subjects/new?examId=${examId}` : "/admin/subjects/new"}>
           <Button
             variant="primary"
             size="sm"
             leftIcon={<PlusCircle className="w-4 h-4" />}
           >
-            Create Topic
+            Create Subject
           </Button>
         </Link>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-2 p-3 bg-surface border border-border rounded-xl">
-        <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider mr-1">
-          Filter by Exam:
-        </span>
-        <Link href="/admin/topics">
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+        <Link href="/admin/subjects">
           <Button
             size="sm"
             variant={!examId ? "primary" : "outline"}
-            className="text-xs h-7 px-2.5"
+            className="text-xs h-8"
           >
-            All Exams
+            All Exams ({getAllSubjects().length})
           </Button>
         </Link>
         {exams.map((e) => {
           const isSelected = examId?.toLowerCase() === e.id.toLowerCase();
+          const count = getAllSubjects(e.id).length;
           return (
-            <Link key={e.id} href={`/admin/topics?examId=${e.id}`}>
+            <Link key={e.id} href={`/admin/subjects?examId=${e.id}`}>
               <Button
                 size="sm"
                 variant={isSelected ? "primary" : "outline"}
-                className="text-xs h-7 px-2.5"
+                className="text-xs h-8"
               >
-                {e.code}
+                {e.code} ({count})
               </Button>
             </Link>
           );
         })}
       </div>
 
-      {/* Topics Table */}
+      {/* Subjects Table */}
       <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead className="bg-background border-b border-border text-xs font-semibold text-text-secondary uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Topic</th>
-                <th className="px-6 py-3.5">Subject & Exam</th>
-                <th className="px-6 py-3.5">Question Bank</th>
+                <th className="px-6 py-3.5">Subject</th>
+                <th className="px-6 py-3.5">Parent Exam</th>
+                <th className="px-6 py-3.5">Topics</th>
                 <th className="px-6 py-3.5">Status</th>
                 <th className="px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {topics.length > 0 ? (
-                topics.map((topic) => {
-                  const subject = getSubjectById(topic.subjectId);
-                  const exam = getExamById(topic.examId);
-
+              {subjects.length > 0 ? (
+                subjects.map((subject) => {
+                  const parentExam = getExamById(subject.examId);
                   return (
-                    <tr key={topic.id} className="hover:bg-background/50 transition-colors">
+                    <tr key={subject.id} className="hover:bg-background/50 transition-colors">
                       <td className="px-6 py-4 align-top max-w-sm">
                         <div className="font-semibold text-text-primary">
-                          {topic.title}
+                          {subject.title}
                         </div>
                         <p className="text-xs text-text-secondary line-clamp-2 mt-1">
-                          {topic.description}
+                          {subject.description}
                         </p>
                       </td>
                       <td className="px-6 py-4 align-top">
-                        <div className="text-xs font-medium text-text-primary">
-                          {subject?.title || topic.subjectId}
-                        </div>
-                        <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px] uppercase mt-1 inline-block">
-                          {exam?.code || topic.examId}
+                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold text-xs uppercase">
+                          {parentExam?.code || subject.examId}
                         </span>
                       </td>
-                      <td className="px-6 py-4 align-top">
+                      <td className="px-6 py-4 align-top text-text-secondary">
                         <Link
-                          href={`/admin/questions?topicId=${topic.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                          href={`/admin/topics?subjectId=${subject.id}&examId=${subject.examId}`}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-text-primary hover:text-primary"
                         >
-                          <HelpCircle className="w-3.5 h-3.5" />
-                          <span>{topic.questionCount} Questions</span>
+                          <BookOpen className="w-3.5 h-3.5 text-secondary" />
+                          <span>{subject.totalTopics} Topics</span>
                         </Link>
                       </td>
                       <td className="px-6 py-4 align-top">
                         <Badge
-                          variant={topic.status === "active" ? "success" : "draft"}
+                          variant={subject.status === "active" ? "success" : "draft"}
                           dot
                           className="capitalize text-xs"
                         >
-                          {topic.status || "active"}
+                          {subject.status || "active"}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 align-top text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
-                            href={`/exams/${topic.examId}/topics/${topic.id}`}
+                            href={`/exams/${subject.examId}/subjects/${subject.id}`}
                             target="_blank"
-                            title="View student topic overview"
+                            title="View student portal page"
                           >
                             <Button size="sm" variant="ghost" className="h-8 px-2 text-text-secondary">
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Button>
                           </Link>
-                          <Link href={`/admin/topics/${topic.id}/edit`}>
+                          <Link href={`/admin/subjects/${subject.id}/edit`}>
                             <Button size="sm" variant="ghost" className="h-8 px-2 text-text-secondary">
                               <FileEdit className="w-3.5 h-3.5 mr-1" />
                               <span className="text-xs">Edit</span>
                             </Button>
                           </Link>
                           <DeleteConfirmButton
-                            itemType="topic"
+                            itemType="subject"
                             onDelete={async () => {
                               "use server";
-                              return deleteTopicAction(topic.id);
+                              return deleteSubjectAction(subject.id);
                             }}
                           />
                         </div>
@@ -168,7 +154,7 @@ export default async function AdminTopicsPage({
               ) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-text-secondary">
-                    No topics found. Click &quot;Create Topic&quot; to add one.
+                    No subjects found for this selection. Click &quot;Create Subject&quot; to add one.
                   </td>
                 </tr>
               )}

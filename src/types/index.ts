@@ -2,7 +2,7 @@
  * Types barrel export.
  *
  * Import shared types from "@/types" rather than deep paths:
- *   import type { ActionResult, PaginatedResult } from "@/types";
+ *   import type { ActionResult, Exam, Subject, Topic, Question, Test } from "@/types";
  */
 
 export type {
@@ -15,3 +15,20 @@ export type {
   SortOrder,
   SortParams,
 } from "./common";
+
+export type {
+  ContentStatus,
+  Exam,
+  Question,
+  QuestionDifficulty,
+  QuestionOption,
+  QuestionResultItem,
+  QuestionStatus,
+  QuizEvaluationResult,
+  Subject,
+  Test,
+  TestDifficulty,
+  TestStatus,
+  Topic,
+  UserAnswers,
+} from "./content";
