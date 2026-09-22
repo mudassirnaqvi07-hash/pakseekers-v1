@@ -1,0 +1,107 @@
+/* =============================================================================
+   PakSeekers — Global Styles & Design Tokens
+   All design tokens are defined here. Do not scatter arbitrary colors
+   throughout the codebase. Extend this file when new tokens are needed.
+   ============================================================================= */
+
+/* Google Fonts must come first — @import rules must precede all other rules */
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..800;1,14..32,300..800&display=swap");
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design Tokens — registered in Tailwind's @theme for utility generation
+   ---------------------------------------------------------------------------
+   Usage in JSX:  className="bg-primary text-surface"
+   All tokens follow the naming convention defined in docs/DESIGN-SYSTEM.md
+   --------------------------------------------------------------------------- */
+@theme {
+  /* Brand Colors */
+  --color-primary:   #123B63;
+  --color-secondary: #0F766E;
+  --color-accent:    #F59E0B;
+
+  /* Surface / Background */
+  --color-background: #F8FAFC;
+  --color-surface:    #FFFFFF;
+
+  /* Text */
+  --color-text-primary:   #172033;
+  --color-text-secondary: #64748B;
+
+  /* Border */
+  --color-border: #E2E8F0;
+
+  /* Semantic */
+  --color-success:  #16A34A;
+  --color-error:    #DC2626;
+  --color-warning:  #F59E0B;
+  --color-disabled: #94A3B8;
+
+  /* Hover variants (used for interactive elements) */
+  --color-primary-hover:   #0E2E4F;
+  --color-secondary-hover: #0C5E57;
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+
+  /* Border Radius — moderate, professional scale */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-full: 9999px;
+}
+
+/* ---------------------------------------------------------------------------
+   Base Styles
+   --------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ---------------------------------------------------------------------------
+   Focus Styles — accessible, consistent
+   --------------------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Scrollbar — subtle, matches design language
+   --------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-disabled);
+}
