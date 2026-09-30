@@ -32,3 +32,14 @@ export type {
   Topic,
   UserAnswers,
 } from "./content";
+
+export type {
+  StudentDashboardStats,
+  StudentProfile,
+  SubjectProgress,
+  TestAttempt,
+  User,
+  UserRole,
+  UserSession,
+} from "./auth";
+

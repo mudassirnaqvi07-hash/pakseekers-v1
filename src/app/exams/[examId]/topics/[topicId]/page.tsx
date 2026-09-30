@@ -8,6 +8,7 @@ import {
   Sparkles,
   Play,
   HelpCircle,
+  Lock,
 } from "lucide-react";
 import {
   getExamById,
@@ -17,6 +18,7 @@ import {
   getTestsByTopicId,
 } from "@/features/exams/services/content-service";
 import { Button, Badge } from "@/components/ui";
+import { getCurrentUser } from "@/server/auth/session";
 
 interface TopicDetailPageProps {
   params: Promise<{ examId: string; topicId: string }>;
@@ -42,9 +44,10 @@ export default async function TopicDetailPage({
   params,
 }: TopicDetailPageProps) {
   const { examId, topicId } = await params;
-  const [exam, topic] = await Promise.all([
+  const [exam, topic, user] = await Promise.all([
     getExamById(examId),
     getTopicById(topicId),
+    getCurrentUser(),
   ]);
 
   if (!exam || !topic) {
@@ -54,6 +57,8 @@ export default async function TopicDetailPage({
   const subject = await getSubjectById(topic.subjectId);
   const questions = await getQuestionsByTopicId(topic.id);
   const tests = await getTestsByTopicId(topic.id);
+
+  const isAuthenticated = !!(user && user.role === "student");
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto">
@@ -149,13 +154,35 @@ export default async function TopicDetailPage({
             <Button
               variant="primary"
               size="lg"
-              leftIcon={<Play className="w-4 h-4" />}
+              leftIcon={
+                isAuthenticated ? (
+                  <Play className="w-4 h-4" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )
+              }
               className="w-full sm:w-auto"
             >
-              Start Practice Quiz ({questions.length} Questions)
+              {isAuthenticated
+                ? `Start Practice Quiz (${questions.length} Questions)`
+                : "Login to Start Practice Quiz"}
             </Button>
           </Link>
         </div>
+
+        {/* Auth hint for unauthenticated visitors */}
+        {!isAuthenticated && (
+          <p className="text-xs text-text-secondary text-center -mt-2">
+            You will be asked to{" "}
+            <Link
+              href="/student/login"
+              className="text-primary font-semibold hover:underline"
+            >
+              sign in or create a free account
+            </Link>{" "}
+            before starting the quiz.
+          </p>
+        )}
       </div>
 
       {/* Tests in this Topic (if any) */}
@@ -187,8 +214,12 @@ export default async function TopicDetailPage({
                 </div>
 
                 <Link href={`/exams/${exam.id}/topics/${topic.id}/practice?testId=${test.id}`}>
-                  <Button size="sm" variant="outline">
-                    Take Test
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    leftIcon={!isAuthenticated ? <Lock className="w-3.5 h-3.5" /> : undefined}
+                  >
+                    {isAuthenticated ? "Take Test" : "Login to Take Test"}
                   </Button>
                 </Link>
               </div>

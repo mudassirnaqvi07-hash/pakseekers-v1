@@ -17,6 +17,7 @@ interface ResultSummaryProps {
   onReviewAnswers: () => void;
   onPracticeAgain: () => void;
   isReviewing: boolean;
+  savedAttemptId?: string | null;
 }
 
 export function ResultSummary({
@@ -26,6 +27,7 @@ export function ResultSummary({
   onReviewAnswers,
   onPracticeAgain,
   isReviewing,
+  savedAttemptId,
 }: ResultSummaryProps) {
   const isPassed = result.percentage >= 60;
 
@@ -107,6 +109,30 @@ export function ResultSummary({
           </div>
         </div>
       </div>
+
+      {/* Attempt Persistence Status */}
+      {savedAttemptId ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-primary/10 border border-primary/20 text-xs">
+          <div className="flex items-center gap-2 text-primary font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+            <span>Attempt score recorded to your student profile!</span>
+          </div>
+          <Link href={`/student/attempts/${savedAttemptId}`}>
+            <Button variant="outline" size="sm" className="h-7 text-xs">
+              View in My Attempts →
+            </Button>
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-surface-hover border border-border text-xs text-text-secondary">
+          <span>Sign in to automatically save attempt scores and track subject progress.</span>
+          <Link href="/student/login">
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-semibold">
+              Student Sign In →
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border">

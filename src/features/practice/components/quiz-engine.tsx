@@ -20,23 +20,33 @@ import { QuestionReview } from "./question-review";
 import { EmptyState } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { HelpCircle } from "lucide-react";
+import { recordTestAttemptAction } from "@/server/actions/auth-actions";
 
 interface QuizEngineProps {
   questions: Question[];
   topicTitle: string;
   topicHref: string;
+  examId?: string;
+  subjectId?: string;
+  topicId?: string;
+  testId?: string;
 }
 
 export function QuizEngine({
   questions,
   topicTitle,
   topicHref,
+  examId,
+  subjectId,
+  topicId,
+  testId,
 }: QuizEngineProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<UserAnswers>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [result, setResult] = useState<QuizEvaluationResult | null>(null);
+  const [savedAttemptId, setSavedAttemptId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   if (!questions || questions.length === 0) {
@@ -84,11 +94,37 @@ export function QuizEngine({
 
   // Submission
   const handleSubmit = () => {
-    startTransition(() => {
+    startTransition(async () => {
       const evalResult = evaluateQuiz(questions, answers);
       setResult(evalResult);
       setIsSubmitted(true);
       setIsReviewing(true); // Automatically open review after submit
+
+      // Record test attempt if examId is provided
+      if (examId) {
+        try {
+          const res = await recordTestAttemptAction({
+            testId,
+            examId,
+            subjectId: subjectId || "general",
+            topicId,
+            selectedAnswers: answers,
+            score: evalResult.score,
+            totalQuestions: evalResult.totalQuestions,
+            correctCount: evalResult.correctCount,
+            incorrectCount: evalResult.incorrectCount,
+            unattemptedCount: evalResult.unattemptedCount,
+            percentage: evalResult.percentage,
+            questionResults: evalResult.questionResults,
+          });
+          if (res.success) {
+            setSavedAttemptId(res.data.id);
+          }
+        } catch {
+          // Unauthenticated or background error
+        }
+      }
+
       // Scroll to top
       if (typeof window !== "undefined") {
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -103,6 +139,7 @@ export function QuizEngine({
     setIsSubmitted(false);
     setIsReviewing(false);
     setResult(null);
+    setSavedAttemptId(null);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -124,6 +161,7 @@ export function QuizEngine({
             onReviewAnswers={handleToggleReview}
             onPracticeAgain={handlePracticeAgain}
             isReviewing={isReviewing}
+            savedAttemptId={savedAttemptId}
           />
 
           {/* Detailed Question Review List */}

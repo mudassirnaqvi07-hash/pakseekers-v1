@@ -1,0 +1,569 @@
+{
+  "users": [
+    {
+      "id": "admin-seed-01",
+      "email": "admin@pakseekers.com",
+      "name": "PakSeekers Administrator",
+      "role": "admin",
+      "passwordHash": "3d35d1e6250d3cb6540abe5e7ba6ab8a:0c969412c0351d4a1210aa177756dcc474c191607a4f6d316dd7de9a2aa1d8f9eec0b9064244d6ac8d3e52cc6c9112ad7e1eda3f7bfd44c4ea50784656bd073a",
+      "profile": {
+        "educationLevel": "Master of Science",
+        "institution": "PakSeekers Core",
+        "targetExam": "All Exams"
+      },
+      "createdAt": "2026-09-22T16:25:01.465Z",
+      "updatedAt": "2026-09-22T16:25:01.465Z"
+    },
+    {
+      "id": "student-seed-01",
+      "email": "student@pakseekers.com",
+      "name": "Ali Ahmed",
+      "role": "student",
+      "passwordHash": "4f554b04a21770a41aa8df751c978426:5bc6e06980d3c101edbfc6a61b6cfd72ef86742f1978e4c640e8278e059b3b32da7ef3610d209efb75596df8016625979cb61e8dd7a605a8e396ed0ed32a7b83",
+      "profile": {
+        "educationLevel": "FSc Pre-Medical",
+        "institution": "Punjab Group of Colleges",
+        "targetExam": "MDCAT",
+        "phone": "+92 300 1234567"
+      },
+      "createdAt": "2026-09-22T16:25:01.465Z",
+      "updatedAt": "2026-09-22T16:25:01.465Z"
+    },
+    {
+      "id": "user-1790094301745-f1ie",
+      "email": "student-1790094301745@example.com",
+      "name": "Zainab Tariq (Updated)",
+      "role": "student",
+      "passwordHash": "6d88cf291bd5752232e3eb3fdd0643bb:107ec84fca565a873f9190cc1c1604caf062175280f050d17b8eeeea4b898d6fc63a3ad7d1fd4710aa6f77534bc81fd22eec695f85d1218d74dd00b9f70a8d86",
+      "profile": {
+        "educationLevel": "FSc Pre-Engineering",
+        "institution": "NUST Preparatory Academy",
+        "targetExam": "NUST NET",
+        "phone": "+92 301 9876543"
+      },
+      "createdAt": "2026-09-22T16:25:01.745Z",
+      "updatedAt": "2026-09-22T16:25:01.822Z"
+    },
+    {
+      "id": "user-1790156421783-9cxk",
+      "email": "test.student.1790156421768@example.com",
+      "name": "Muhammad Ali",
+      "role": "student",
+      "passwordHash": "a68078755ceee713eac92a86ced1b1cc:baddee2b7f619a6e3f881ca55e58b363793c8b0f21fd36887349ae76cdc48dc1bc79c8675a8a851b1a25f9d000e9b13c24cf33b4d800fd36e637e309435a874d",
+      "profile": {
+        "educationLevel": "FSc Pre-Engineering",
+        "institution": "Punjab College of Science",
+        "targetExam": "ECAT",
+        "phone": ""
+      },
+      "createdAt": "2026-09-23T09:40:21.782Z",
+      "updatedAt": "2026-09-23T09:40:21.782Z"
+    },
+    {
+      "id": "user-1790156626178-c81y",
+      "email": "test.student.1790156626167@example.com",
+      "name": "Muhammad Ali",
+      "role": "student",
+      "passwordHash": "8130b93c5b4128106d08f3b1f0d1e441:2bac8199eb9854c5cb1e4f8536e21f99f2fa8dc03b1a483c1ab88d0a57c839efe95c704d640c331b78b584315d8698768d9422dcd1a96022c8103770598914ce",
+      "profile": {
+        "educationLevel": "FSc Pre-Engineering",
+        "institution": "Punjab College of Science",
+        "targetExam": "ECAT",
+        "phone": ""
+      },
+      "createdAt": "2026-09-23T09:43:46.177Z",
+      "updatedAt": "2026-09-23T09:43:46.177Z"
+    },
+    {
+      "id": "user-1790157153200-ia98",
+      "email": "mudassir@pakseekers.com",
+      "name": "mudassir",
+      "role": "student",
+      "passwordHash": "82ad6eb7c53f18daa238f5f37f198595:3744a79428331bba3a074799357f08a56c2fa5e4bef724c3a2280a1f597527bb3d4cc469fff03a4c2caa89e5156dc5100bcf888d8e592f7f3ddf2db1800e95e4",
+      "profile": {
+        "educationLevel": "FSc Pre-Medical",
+        "institution": "ACOS",
+        "targetExam": "MDCAT",
+        "phone": ""
+      },
+      "createdAt": "2026-09-23T09:52:33.200Z",
+      "updatedAt": "2026-09-23T09:52:33.200Z"
+    },
+    {
+      "id": "user-1790159693394-ll9z",
+      "email": "student.a.1790159693394@example.com",
+      "name": "Student Alpha",
+      "role": "student",
+      "passwordHash": "a982bf6561970e4619ec34011cc6b754:95a228cab21e0ffc1aa7ad98a828c6b4df9f3689b58b9406e8b7ea9be8ca89490cd24256f5295147a4fda0fe7ed2953dcb9b7dd13b50e0f7d9c5126439f6d1b6",
+      "profile": {
+        "educationLevel": "FSc Pre-Medical",
+        "institution": "Not specified",
+        "targetExam": "MDCAT",
+        "phone": ""
+      },
+      "createdAt": "2026-09-23T10:34:53.394Z",
+      "updatedAt": "2026-09-23T10:34:53.394Z"
+    },
+    {
+      "id": "user-1790159693477-5ox4",
+      "email": "student.b.1790159693477@example.com",
+      "name": "Student Beta",
+      "role": "student",
+      "passwordHash": "43819b67c37495d897866577bc4a21e6:84ba5411bf631c12bfa9540a9606be2ed8c7ffa2cc69f29ce943e298579e9b48d950b8dbd469f6347148d7d354d18fef8367770fbddcf789ba56704ff91301f2",
+      "profile": {
+        "educationLevel": "FSc Pre-Medical",
+        "institution": "Not specified",
+        "targetExam": "MDCAT",
+        "phone": ""
+      },
+      "createdAt": "2026-09-23T10:34:53.477Z",
+      "updatedAt": "2026-09-23T10:34:53.477Z"
+    },
+    {
+      "id": "user-1790159830426-qwmy",
+      "email": "student.a.1790159830425@example.com",
+      "name": "Student Alpha",
+      "role": "student",
+      "passwordHash": "acbcb705d644c191f44a9325aef1591d:1dc1946c969b462b127f50b055056ebfcf7dd51452636a839f0a441d3523f22cdc972d58ad7058dc4b49537bc7acc60b12e1c671dbff1f0c34e01c08a0512bc8",
+      "profile": {
+        "educationLevel": "FSc Pre-Medical",
+        "institution": "Not specified",
+        "targetExam": "MDCAT",
+        "phone": ""
+      },
+      "createdAt": "2026-09-23T10:37:10.426Z",
+      "updatedAt": "2026-09-23T10:37:10.426Z"
+    },
+    {
+      "id": "user-1790159830499-u7h0",
+      "email": "student.b.1790159830499@example.com",
+      "name": "Student Beta",
+      "role": "student",
+      "passwordHash": "199cc1f06646cdc425467b1a63277aee:09cec07db98e166cdd11df46f013df6cfea533fe3556f4f8fd5887105eb03af0f2c692b0628f9513e5be31f4e48b78b1fd333cd28aaaf8dea15c43c5863dec9b",
+      "profile": {
+        "educationLevel": "FSc Pre-Medical",
+        "institution": "Not specified",
+        "targetExam": "MDCAT",
+        "phone": ""
+      },
+      "createdAt": "2026-09-23T10:37:10.499Z",
+      "updatedAt": "2026-09-23T10:37:10.499Z"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "519ec7aaf34591ea16aebb175b7f755db2905ecacbd631dc62a9b43162e329cd",
+      "userId": "user-1790094301745-f1ie",
+      "role": "student",
+      "createdAt": "2026-09-22T16:25:01.824Z",
+      "expiresAt": "2026-09-29T16:25:01.824Z"
+    },
+    {
+      "token": "ac3fa7799749904c079e19a6ae7ba9f49c723e57fb9ada1e44c3126127191f47",
+      "userId": "user-1790156421783-9cxk",
+      "role": "student",
+      "createdAt": "2026-09-23T09:40:21.878Z",
+      "expiresAt": "2026-09-30T09:40:21.878Z"
+    },
+    {
+      "token": "9f6ce3135c49668ba799acaa3763d85bf5e8395e0039f4671077ecc845c83696",
+      "userId": "user-1790156626178-c81y",
+      "role": "student",
+      "createdAt": "2026-09-23T09:43:46.241Z",
+      "expiresAt": "2026-09-30T09:43:46.241Z"
+    },
+    {
+      "token": "e34f9a6a8ad4d18c48bd6d73cb2e8e994dccc5e2efa7bdb5469f3a4db391ad68",
+      "userId": "user-1790156626178-c81y",
+      "role": "student",
+      "createdAt": "2026-09-23T09:43:46.380Z",
+      "expiresAt": "2026-09-30T09:43:46.380Z"
+    },
+    {
+      "token": "a7358d7beb5088b915391e45083f28dd22c20943bd1220531001954ba6cabedf",
+      "userId": "user-1790157153200-ia98",
+      "role": "student",
+      "createdAt": "2026-09-23T09:52:33.287Z",
+      "expiresAt": "2026-09-30T09:52:33.287Z"
+    },
+    {
+      "token": "835f3fdfe67ea556aaa317791b60c0735362b8177542ef7baad504b1ecfb15c6",
+      "userId": "student-seed-01",
+      "role": "student",
+      "createdAt": "2026-09-23T10:34:53.276Z",
+      "expiresAt": "2026-09-30T10:34:53.276Z"
+    },
+    {
+      "token": "fcd88788d1f026048c74184f32840475896a10144aa96856bfdde4af681f50f0",
+      "userId": "student-seed-01",
+      "role": "student",
+      "createdAt": "2026-09-23T10:34:53.392Z",
+      "expiresAt": "2026-09-30T10:34:53.392Z"
+    },
+    {
+      "token": "5f5793f25d69d7641083288a917c2d7c7922cdfbb976754a11faf20abe2d87a4",
+      "userId": "student-seed-01",
+      "role": "student",
+      "createdAt": "2026-09-23T10:37:10.304Z",
+      "expiresAt": "2026-09-30T10:37:10.304Z"
+    },
+    {
+      "token": "e395a210cb2f2a2a6c6451d489c1bcd6a22c12ec72afdc05f2d8740d47f26766",
+      "userId": "student-seed-01",
+      "role": "student",
+      "createdAt": "2026-09-23T10:37:10.423Z",
+      "expiresAt": "2026-09-30T10:37:10.423Z"
+    },
+    {
+      "token": "a38e6d52a1b3ffd6df93ebe42b12de922fb97957649a36999f22e797dde0888b",
+      "userId": "admin-seed-01",
+      "role": "admin",
+      "createdAt": "2026-09-23T14:04:51.837Z",
+      "expiresAt": "2026-09-30T14:04:51.837Z"
+    },
+    {
+      "token": "aa3d7ae68b506a9fa45502df87ffee63b34d52d6310623654ddb27f463790d19",
+      "userId": "student-seed-01",
+      "role": "student",
+      "createdAt": "2026-09-23T14:17:33.214Z",
+      "expiresAt": "2026-09-30T14:17:33.214Z"
+    }
+  ],
+  "attempts": [
+    {
+      "studentId": "user-1790094301745-f1ie",
+      "testId": "test-diagnostic-demo",
+      "testTitle": "Cell Structure & Biomolecules Diagnostic",
+      "examId": "mdcat",
+      "examTitle": "Medical & Dental College Admission Test",
+      "subjectId": "biology",
+      "subjectTitle": "Biology",
+      "topicId": "cell-biology",
+      "topicTitle": "Cell Biology",
+      "selectedAnswers": {
+        "q-1": "opt-a",
+        "q-2": "opt-b",
+        "q-3": "opt-a"
+      },
+      "score": 2,
+      "totalQuestions": 3,
+      "correctCount": 2,
+      "incorrectCount": 1,
+      "unattemptedCount": 0,
+      "percentage": 67,
+      "questionResults": [
+        {
+          "question": {
+            "id": "q-1",
+            "questionText": "Which organelle is known as the powerhouse of the cell?",
+            "options": [
+              {
+                "id": "opt-a",
+                "label": "A",
+                "text": "Mitochondria"
+              },
+              {
+                "id": "opt-b",
+                "label": "B",
+                "text": "Ribosome"
+              },
+              {
+                "id": "opt-c",
+                "label": "C",
+                "text": "Nucleus"
+              },
+              {
+                "id": "opt-d",
+                "label": "D",
+                "text": "Chloroplast"
+              }
+            ],
+            "correctAnswer": "opt-a",
+            "explanation": "Mitochondria generate most of the cell supply of adenosine triphosphate (ATP).",
+            "examId": "mdcat",
+            "subjectId": "biology",
+            "topicId": "cell-biology",
+            "difficulty": "easy",
+            "status": "published"
+          },
+          "selectedOptionId": "opt-a",
+          "correctOptionId": "opt-a",
+          "isCorrect": true,
+          "isAnswered": true
+        },
+        {
+          "question": {
+            "id": "q-2",
+            "questionText": "Which molecule carries genetic information from DNA to the ribosome?",
+            "options": [
+              {
+                "id": "opt-a",
+                "label": "A",
+                "text": "tRNA"
+              },
+              {
+                "id": "opt-b",
+                "label": "B",
+                "text": "mRNA"
+              },
+              {
+                "id": "opt-c",
+                "label": "C",
+                "text": "rRNA"
+              },
+              {
+                "id": "opt-d",
+                "label": "D",
+                "text": "snRNA"
+              }
+            ],
+            "correctAnswer": "opt-b",
+            "explanation": "Messenger RNA (mRNA) conveys genetic information from DNA to the ribosome.",
+            "examId": "mdcat",
+            "subjectId": "biology",
+            "topicId": "cell-biology",
+            "difficulty": "medium",
+            "status": "published"
+          },
+          "selectedOptionId": "opt-b",
+          "correctOptionId": "opt-b",
+          "isCorrect": true,
+          "isAnswered": true
+        },
+        {
+          "question": {
+            "id": "q-3",
+            "questionText": "Which of the following is absent in animal cells?",
+            "options": [
+              {
+                "id": "opt-a",
+                "label": "A",
+                "text": "Cell Membrane"
+              },
+              {
+                "id": "opt-b",
+                "label": "B",
+                "text": "Cell Wall"
+              },
+              {
+                "id": "opt-c",
+                "label": "C",
+                "text": "Mitochondria"
+              },
+              {
+                "id": "opt-d",
+                "label": "D",
+                "text": "Golgi Apparatus"
+              }
+            ],
+            "correctAnswer": "opt-b",
+            "explanation": "Animal cells lack a rigid cell wall, which is characteristic of plant and fungal cells.",
+            "examId": "mdcat",
+            "subjectId": "biology",
+            "topicId": "cell-biology",
+            "difficulty": "easy",
+            "status": "published"
+          },
+          "selectedOptionId": "opt-a",
+          "correctOptionId": "opt-b",
+          "isCorrect": false,
+          "isAnswered": true
+        }
+      ],
+      "startedAt": "2026-09-22T16:25:01.829Z",
+      "completedAt": "2026-09-22T16:25:01.829Z",
+      "status": "completed",
+      "id": "attempt-1790094301829-tlo1"
+    },
+    {
+      "studentId": "user-1790159693394-ll9z",
+      "testId": "test-diagnostic-demo",
+      "testTitle": "Diagnostic Assessment Alpha",
+      "examId": "mdcat",
+      "examTitle": "MDCAT",
+      "subjectId": "biology",
+      "subjectTitle": "Biology",
+      "selectedAnswers": {},
+      "score": 5,
+      "totalQuestions": 5,
+      "correctCount": 5,
+      "incorrectCount": 0,
+      "unattemptedCount": 0,
+      "percentage": 100,
+      "questionResults": [],
+      "startedAt": "2026-09-23T10:34:53.585Z",
+      "completedAt": "2026-09-23T10:34:53.585Z",
+      "status": "completed",
+      "id": "attempt-1790159693585-zns2"
+    },
+    {
+      "studentId": "user-1790159830426-qwmy",
+      "testId": "test-diagnostic-demo",
+      "testTitle": "Diagnostic Assessment Alpha",
+      "examId": "mdcat",
+      "examTitle": "MDCAT",
+      "subjectId": "biology",
+      "subjectTitle": "Biology",
+      "selectedAnswers": {},
+      "score": 5,
+      "totalQuestions": 5,
+      "correctCount": 5,
+      "incorrectCount": 0,
+      "unattemptedCount": 0,
+      "percentage": 100,
+      "questionResults": [],
+      "startedAt": "2026-09-23T10:37:10.591Z",
+      "completedAt": "2026-09-23T10:37:10.591Z",
+      "status": "completed",
+      "id": "attempt-1790159830592-ylgi"
+    },
+    {
+      "studentId": "student-seed-01",
+      "testId": "test-bio-cell",
+      "testTitle": "Cell Biology Practice Quiz",
+      "examId": "mdcat",
+      "examTitle": "Medical & Dental College Admission Test",
+      "subjectId": "biology",
+      "subjectTitle": "Biology",
+      "topicId": "cell-biology",
+      "topicTitle": "Cell Biology & Ultrastructure",
+      "selectedAnswers": {
+        "q-bio-001": "opt-2",
+        "q-bio-002": "opt-4",
+        "q-bio-003": "opt-2"
+      },
+      "score": 2,
+      "totalQuestions": 3,
+      "correctCount": 2,
+      "incorrectCount": 1,
+      "unattemptedCount": 0,
+      "percentage": 67,
+      "questionResults": [
+        {
+          "question": {
+            "id": "q-bio-001",
+            "examId": "mdcat",
+            "subjectId": "biology",
+            "topicId": "cell-biology",
+            "questionText": "Which organelle possesses its own circular DNA, 70S ribosomes, and performs oxidative phosphorylation to generate ATP?",
+            "options": [
+              {
+                "id": "opt-1",
+                "label": "A",
+                "text": "Golgi apparatus"
+              },
+              {
+                "id": "opt-2",
+                "label": "B",
+                "text": "Mitochondrion"
+              },
+              {
+                "id": "opt-3",
+                "label": "C",
+                "text": "Endoplasmic reticulum"
+              },
+              {
+                "id": "opt-4",
+                "label": "D",
+                "text": "Lysosome"
+              }
+            ],
+            "correctAnswer": "opt-2",
+            "explanation": "Mitochondria are semi-autonomous double-membraned organelles containing their own circular mitochondrial DNA (mtDNA) and prokaryotic-like 70S ribosomes. The inner mitochondrial membrane houses the electron transport chain where oxidative phosphorylation generates ATP.",
+            "difficulty": "easy",
+            "status": "published",
+            "createdAt": "2026-02-10T10:00:00Z"
+          },
+          "selectedOptionId": "opt-2",
+          "correctOptionId": "opt-2",
+          "isCorrect": true,
+          "isAnswered": true
+        },
+        {
+          "question": {
+            "id": "q-bio-002",
+            "examId": "mdcat",
+            "subjectId": "biology",
+            "topicId": "cell-biology",
+            "questionText": "According to the Fluid Mosaic Model proposed by Singer and Nicolson, the cell membrane is primarily composed of:",
+            "options": [
+              {
+                "id": "opt-1",
+                "label": "A",
+                "text": "A continuous protein sheet interspersed with carbohydrate globules"
+              },
+              {
+                "id": "opt-2",
+                "label": "B",
+                "text": "A phospholipid bilayer with globular proteins floating within or across it"
+              },
+              {
+                "id": "opt-3",
+                "label": "C",
+                "text": "Cellulose microfibrils cross-linked with pectin polysaccharides"
+              },
+              {
+                "id": "opt-4",
+                "label": "D",
+                "text": "Rigid cholesterol plates surrounding aqueous glycoprotein channels"
+              }
+            ],
+            "correctAnswer": "opt-2",
+            "explanation": "The Fluid Mosaic Model describes the plasma membrane as a dynamic phospholipid bilayer (fluid matrix) in which amphipathic integral and peripheral proteins are embedded in a mosaic arrangement.",
+            "difficulty": "medium",
+            "status": "published",
+            "createdAt": "2026-02-10T10:05:00Z"
+          },
+          "selectedOptionId": "opt-4",
+          "correctOptionId": "opt-2",
+          "isCorrect": false,
+          "isAnswered": true
+        },
+        {
+          "question": {
+            "id": "q-bio-003",
+            "examId": "mdcat",
+            "subjectId": "biology",
+            "topicId": "cell-biology",
+            "questionText": "Which active transport mechanism directly hydrolyzes ATP to move ions across an electrochemical gradient in animal cell membranes?",
+            "options": [
+              {
+                "id": "opt-1",
+                "label": "A",
+                "text": "Facilitated diffusion through aquaporins"
+              },
+              {
+                "id": "opt-2",
+                "label": "B",
+                "text": "Sodium-Potassium ATPase (Na+/K+ pump)"
+              },
+              {
+                "id": "opt-3",
+                "label": "C",
+                "text": "Glucose symport via SGLT-1"
+              },
+              {
+                "id": "opt-4",
+                "label": "D",
+                "text": "Voltage-gated potassium leak channels"
+              }
+            ],
+            "correctAnswer": "opt-2",
+            "explanation": "The Na+/K+ ATPase is a primary active transport pump that consumes one ATP molecule to export 3 Na+ ions and import 2 K+ ions against their concentration gradients, maintaining resting membrane potential.",
+            "difficulty": "hard",
+            "status": "published",
+            "createdAt": "2026-02-10T10:10:00Z"
+          },
+          "selectedOptionId": "opt-2",
+          "correctOptionId": "opt-2",
+          "isCorrect": true,
+          "isAnswered": true
+        }
+      ],
+      "startedAt": "2026-09-23T14:18:28.252Z",
+      "completedAt": "2026-09-23T14:18:28.252Z",
+      "status": "completed",
+      "id": "attempt-1790173108252-vygj"
+    }
+  ]
+}

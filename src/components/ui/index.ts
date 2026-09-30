@@ -17,7 +17,7 @@ export type { SelectProps, SelectOption } from "./select";
 export { Textarea } from "./textarea";
 export type { TextareaProps } from "./textarea";
 
-export { Card, CardHeader, CardFooter } from "./card";
+export { Card, CardHeader, CardFooter, CardContent } from "./card";
 export type { CardProps, CardHeaderProps, CardFooterProps } from "./card";
 
 export { Badge } from "./badge";

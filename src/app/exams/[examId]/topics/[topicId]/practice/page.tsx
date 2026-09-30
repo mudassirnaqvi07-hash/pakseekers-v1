@@ -12,6 +12,7 @@ import {
 } from "@/features/exams/services/content-service";
 import { QuizEngine } from "@/features/practice/components/quiz-engine";
 import { Button } from "@/components/ui";
+import { requireStudent } from "@/server/auth/session";
 
 interface PracticePageProps {
   params: Promise<{ examId: string; topicId: string }>;
@@ -32,7 +33,7 @@ export async function generateMetadata({
 
   if (testId) {
     const test = await getTestById(testId);
-    if (test) {
+    if (test && test.status === "published") {
       return {
         title: `${test.title} | PakSeekers`,
         description: test.description,
@@ -53,6 +54,13 @@ export default async function PracticePage({
   const { examId, topicId } = await params;
   const { testId } = await searchParams;
 
+  // Protect test-taking flow: requires an authenticated student.
+  // Unauthenticated users are redirected to login with a safe callback destination.
+  const returnPath = `/exams/${examId}/topics/${topicId}/practice${
+    testId ? `?testId=${encodeURIComponent(testId)}` : ""
+  }`;
+  await requireStudent(returnPath);
+
   const [exam, topic] = await Promise.all([
     getExamById(examId),
     getTopicById(topicId),
@@ -68,7 +76,12 @@ export default async function PracticePage({
 
   if (testId) {
     const test = await getTestById(testId);
-    if (test && test.questionIds.length > 0) {
+    // Draft or archived tests must remain unavailable according to publishing rules
+    if (!test || test.status !== "published") {
+      notFound();
+    }
+
+    if (test.questionIds.length > 0) {
       questions = await getQuestionsByIds(test.questionIds);
       activeTitle = test.title;
     }
@@ -121,6 +134,10 @@ export default async function PracticePage({
         questions={questions}
         topicTitle={activeTitle}
         topicHref={topicHref}
+        examId={exam.id}
+        subjectId={subject?.id}
+        topicId={topic.id}
+        testId={testId}
       />
     </div>
   );

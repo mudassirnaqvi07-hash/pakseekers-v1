@@ -1,291 +1,413 @@
 /**
- * Engineering Foundation — Verification Page
+ * Public Landing Page — PakSeekers.
  *
- * This page confirms that the design system, fonts, and UI components
- * render correctly. It is NOT a product page and will be replaced
- * in Phase 4 (Admin Shell + Dashboard).
- *
- * See docs/ROADMAP.md for development phases.
+ * The official front door of the PakSeekers platform.
+ * Dynamically displays available exams, core platform capabilities,
+ * clear student CTAs (Start Preparing, Student Login), and an Admin Portal entry point.
  */
 
-import { Badge, Button, Card, CardFooter, CardHeader, Input } from "@/components/ui";
-import { APP_NAME, APP_VERSION } from "@/lib/config/app";
-import { BookOpen, CheckCircle, Database, FileText, Layers, Settings } from "lucide-react";
+import Link from "next/link";
+import {
+  GraduationCap,
+  BookOpen,
+  CheckCircle2,
+  BarChart3,
+  Sparkles,
+  ArrowRight,
+  Shield,
+  Layers,
+} from "lucide-react";
+import { Badge, Button, Card, CardContent } from "@/components/ui";
+import { APP_NAME } from "@/lib/config/app";
+import { getAllExams } from "@/server/repositories/content-repository";
+import { getCurrentUser } from "@/server/auth/session";
 
-export default function FoundationPage() {
+export default async function HomePage() {
+  const [currentUser, exams] = await Promise.all([
+    getCurrentUser(),
+    Promise.resolve(getAllExams("active")),
+  ]);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-text-primary flex flex-col">
       {/* ------------------------------------------------------------------ */}
-      {/* Header */}
+      {/* Public Header */}
       {/* ------------------------------------------------------------------ */}
-      <header className="bg-primary border-b border-border">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-accent rounded-md flex items-center justify-center">
-              <BookOpen className="w-4 h-4 text-white" aria-hidden="true" />
+      <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-md border-b border-border shadow-2xs">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          {/* Brand */}
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-primary text-white flex items-center justify-center shadow-xs">
+              <GraduationCap className="w-5 h-5" />
             </div>
-            <span className="text-white font-semibold text-lg tracking-tight">
+            <span className="font-bold text-xl tracking-tight text-primary">
               {APP_NAME}
             </span>
+          </Link>
+
+          {/* Navigation Links */}
+          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+            <Link
+              href="#exams"
+              className="text-text-secondary hover:text-primary transition-colors"
+            >
+              Exams & Syllabus
+            </Link>
+            <Link
+              href="#features"
+              className="text-text-secondary hover:text-primary transition-colors"
+            >
+              Features
+            </Link>
+            <Link
+              href="#how-it-works"
+              className="text-text-secondary hover:text-primary transition-colors"
+            >
+              How It Works
+            </Link>
+          </nav>
+
+          {/* Auth Actions */}
+          <div className="flex items-center gap-3">
+            {currentUser ? (
+              currentUser.role === "admin" ? (
+                <Link href="/admin">
+                  <Button variant="outline" size="sm">
+                    <Shield className="w-4 h-4 mr-1.5" />
+                    Admin Panel
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/student/dashboard">
+                  <Button variant="primary" size="sm">
+                    Student Dashboard
+                    <ArrowRight className="w-4 h-4 ml-1.5" />
+                  </Button>
+                </Link>
+              )
+            ) : (
+              <>
+                <Link href="/student/login">
+                  <Button variant="ghost" size="sm">
+                    Login
+                  </Button>
+                </Link>
+                <Link href="/student/register">
+                  <Button variant="primary" size="sm">
+                    Start Preparing
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
-          <Badge variant="info" dot>
-            v{APP_VERSION} — Engineering Foundation
-          </Badge>
         </div>
       </header>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Main */}
+      {/* Hero Section */}
       {/* ------------------------------------------------------------------ */}
-      <main className="max-w-5xl mx-auto px-6 py-12 flex flex-col gap-10">
-        {/* Hero */}
-        <section className="flex flex-col gap-3">
-          <h1 className="text-3xl font-bold text-text-primary tracking-tight">
-            Phase 0 Complete — Engineering Foundation
-          </h1>
-          <p className="text-text-secondary text-lg max-w-2xl">
-            The project structure, design system, and reusable UI components
-            have been established. This page verifies that the foundation
-            renders correctly before proceeding to the next phase.
-          </p>
-        </section>
+      <section className="relative overflow-hidden pt-16 pb-20 md:pt-24 md:pb-28 bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
+          <Badge variant="default" className="mb-4 py-1 px-3 text-xs font-semibold">
+            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-accent" />
+            Pakistan’s Premier Entrance Exam Preparation Platform
+          </Badge>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Foundation checklist */}
-        {/* ---------------------------------------------------------------- */}
-        <section aria-labelledby="checklist-heading">
-          <h2
-            id="checklist-heading"
-            className="text-lg font-semibold text-text-primary mb-4"
-          >
-            Foundation Checklist
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {CHECKLIST_ITEMS.map((item) => (
-              <FoundationCard key={item.title} {...item} />
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-text-primary max-w-4xl leading-tight">
+            Master University Entry Tests with{" "}
+            <span className="text-primary underline decoration-accent/40 decoration-4 underline-offset-8">
+              Targeted Practice
+            </span>
+          </h1>
+
+          <p className="mt-6 text-lg sm:text-xl text-text-secondary max-w-2xl font-normal leading-relaxed">
+            Prepare for MDCAT, ECAT, NUST NET, FAST-NU, and other competitive academic
+            examinations with curriculum-aligned question banks, timed mock assessments,
+            and step-by-step explanations.
+          </p>
+
+          {/* Action CTAs */}
+          <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+            <Link
+              href={currentUser ? "/student/dashboard" : "/student/register"}
+              className="w-full sm:w-auto"
+            >
+              <Button size="lg" className="w-full sm:w-auto px-8 shadow-md">
+                Start Preparing Free
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+
+            <Link href="/exams" className="w-full sm:w-auto">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto px-6">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Browse Exam Catalog
+              </Button>
+            </Link>
+          </div>
+
+          {/* Feature Highlights Grid */}
+          <div className="mt-14 grid grid-cols-2 md:grid-cols-4 gap-4 w-full text-left">
+            <div className="p-4 rounded-xl border border-border bg-surface shadow-2xs">
+              <div className="text-2xl font-bold text-primary">100%</div>
+              <div className="text-xs text-text-secondary mt-1">PMDC & University Aligned</div>
+            </div>
+            <div className="p-4 rounded-xl border border-border bg-surface shadow-2xs">
+              <div className="text-2xl font-bold text-primary">Explanations</div>
+              <div className="text-xs text-text-secondary mt-1">Pedagogical answer rationales</div>
+            </div>
+            <div className="p-4 rounded-xl border border-border bg-surface shadow-2xs">
+              <div className="text-2xl font-bold text-primary">Timed Tests</div>
+              <div className="text-xs text-text-secondary mt-1">Realistic test conditions</div>
+            </div>
+            <div className="p-4 rounded-xl border border-border bg-surface shadow-2xs">
+              <div className="text-2xl font-bold text-primary">Progress</div>
+              <div className="text-xs text-text-secondary mt-1">Persistent attempt analytics</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Available Exams Section (Dynamic from Database) */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="exams" className="py-16 md:py-24 bg-surface border-y border-border">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+            <div>
+              <Badge variant="default" className="mb-2">
+                Standardized Examinations
+              </Badge>
+              <h2 className="text-3xl font-bold text-text-primary tracking-tight">
+                Curriculum-Aligned Entrance Exams
+              </h2>
+              <p className="text-text-secondary mt-2 max-w-xl text-sm sm:text-base">
+                Explore dedicated preparation modules for Pakistan’s leading public and
+                private sector universities.
+              </p>
+            </div>
+            <Link href="/exams">
+              <Button variant="outline" size="sm">
+                View Full Catalog
+                <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {exams.map((exam) => (
+              <Card
+                key={exam.id}
+                className="flex flex-col justify-between hover:border-primary/50 transition-all hover:shadow-md"
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <Badge variant="info" className="font-bold tracking-wider">
+                      {exam.code}
+                    </Badge>
+                    <span className="text-xs text-text-secondary font-medium flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5 text-text-secondary" />
+                      {exam.totalSubjects} Subjects
+                    </span>
+                  </div>
+
+                  <h3 className="text-lg font-bold text-text-primary leading-snug mb-2">
+                    {exam.title}
+                  </h3>
+                  <p className="text-sm text-text-secondary line-clamp-3 leading-relaxed mb-6">
+                    {exam.description}
+                  </p>
+
+                  <div className="pt-4 border-t border-border flex items-center justify-between">
+                    <Link
+                      href={`/exams/${exam.id}`}
+                      className="text-sm font-semibold text-primary hover:underline flex items-center gap-1"
+                    >
+                      Explore Syllabus & Tests
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Design tokens */}
-        {/* ---------------------------------------------------------------- */}
-        <section aria-labelledby="tokens-heading">
-          <h2
-            id="tokens-heading"
-            className="text-lg font-semibold text-text-primary mb-4"
-          >
-            Design Tokens
-          </h2>
-          <Card>
-            <CardHeader
-              title="Color System"
-              description="All colors reference tokens defined in globals.css — no arbitrary values."
-            />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {COLOR_TOKENS.map((token) => (
-                <div key={token.name} className="flex flex-col gap-2">
-                  <div
-                    className="h-12 rounded-md border border-border"
-                    style={{ backgroundColor: token.value }}
-                    aria-label={`Color swatch for ${token.name}`}
-                  />
-                  <div>
-                    <p className="text-xs font-medium text-text-primary">{token.name}</p>
-                    <p className="text-xs text-text-secondary font-mono">{token.value}</p>
-                  </div>
-                </div>
-              ))}
+      {/* ------------------------------------------------------------------ */}
+      {/* Platform Capabilities (Real Features) */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="features" className="py-16 md:py-24 bg-background">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <Badge variant="info" className="mb-2">
+              Structured Methodology
+            </Badge>
+            <h2 className="text-3xl font-bold text-text-primary tracking-tight">
+              Designed for Maximum Conceptual Retention
+            </h2>
+            <p className="text-text-secondary mt-2 text-sm sm:text-base">
+              PakSeekers bridges the gap between rote memorization and analytical test-taking skills.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="p-6 rounded-xl border border-border bg-surface hover:shadow-sm transition-all flex flex-col">
+              <div className="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-5">
+                <BookOpen className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-text-primary mb-2">
+                Hierarchical Curriculum
+              </h3>
+              <p className="text-sm text-text-secondary leading-relaxed">
+                Break preparation down into manageable chunks: Exam $\to$ Subject $\to$ Topic $\to$ Focused MCQs.
+              </p>
             </div>
-          </Card>
-        </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Button variants */}
-        {/* ---------------------------------------------------------------- */}
-        <section aria-labelledby="buttons-heading">
-          <h2
-            id="buttons-heading"
-            className="text-lg font-semibold text-text-primary mb-4"
-          >
-            Button Variants
-          </h2>
-          <Card>
-            <div className="flex flex-wrap gap-3">
-              <Button variant="primary">Primary</Button>
-              <Button variant="secondary">Secondary</Button>
-              <Button variant="outline">Outline</Button>
-              <Button variant="ghost">Ghost</Button>
-              <Button variant="danger">Danger</Button>
-              <Button variant="primary" isLoading>
-                Loading
-              </Button>
-              <Button variant="primary" disabled>
-                Disabled
-              </Button>
+            <div className="p-6 rounded-xl border border-border bg-surface hover:shadow-sm transition-all flex flex-col">
+              <div className="w-12 h-12 rounded-lg bg-accent/15 text-accent flex items-center justify-center mb-5">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-text-primary mb-2">
+                Pedagogical Explanations
+              </h3>
+              <p className="text-sm text-text-secondary leading-relaxed">
+                Every MCQ includes detailed rationales for why the correct option is right and common pitfalls to avoid.
+              </p>
             </div>
-          </Card>
-        </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Badge variants */}
-        {/* ---------------------------------------------------------------- */}
-        <section aria-labelledby="badges-heading">
-          <h2
-            id="badges-heading"
-            className="text-lg font-semibold text-text-primary mb-4"
-          >
-            Badge Variants
-          </h2>
-          <Card>
-            <div className="flex flex-wrap gap-3">
-              <Badge variant="success" dot>Published</Badge>
-              <Badge variant="draft" dot>Draft</Badge>
-              <Badge variant="warning" dot>Review</Badge>
-              <Badge variant="archived" dot>Archived</Badge>
-              <Badge variant="error" dot>Error</Badge>
-              <Badge variant="info" dot>Info</Badge>
-              <Badge variant="default">Default</Badge>
+            <div className="p-6 rounded-xl border border-border bg-surface hover:shadow-sm transition-all flex flex-col">
+              <div className="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center mb-5">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-text-primary mb-2">
+                Attempt History & Analytics
+              </h3>
+              <p className="text-sm text-text-secondary leading-relaxed">
+                Track your diagnostic scores over time, review past mistakes, and see your subject-by-subject accuracy.
+              </p>
             </div>
-          </Card>
-        </section>
+          </div>
+        </div>
+      </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Form input */}
-        {/* ---------------------------------------------------------------- */}
-        <section aria-labelledby="forms-heading">
-          <h2
-            id="forms-heading"
-            className="text-lg font-semibold text-text-primary mb-4"
-          >
-            Form Inputs
-          </h2>
-          <Card>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Input
-                label="Default Input"
-                placeholder="Enter text..."
-                helperText="This is a helper message."
-              />
-              <Input
-                label="Required Field"
-                placeholder="Required..."
-                required
-              />
-              <Input
-                label="Error State"
-                placeholder="Invalid value"
-                errorMessage="This field is required."
-              />
-              <Input
-                label="Disabled Input"
-                placeholder="Disabled..."
-                disabled
-              />
+      {/* ------------------------------------------------------------------ */}
+      {/* How It Works (3 Steps) */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="how-it-works" className="py-16 md:py-24 bg-surface border-t border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <Badge variant="info" className="mb-2">
+              Simple Workflow
+            </Badge>
+            <h2 className="text-3xl font-bold text-text-primary tracking-tight">
+              Three Steps to Entry Test Success
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+            <div className="flex flex-col items-center text-center p-6">
+              <div className="w-12 h-12 rounded-full bg-primary text-white font-bold text-lg flex items-center justify-center mb-4 shadow-xs">
+                1
+              </div>
+              <h3 className="text-base font-bold text-text-primary mb-1">
+                Choose Your Exam
+              </h3>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                Pick your target test (e.g. MDCAT, FAST-NU, NTS) and explore the full syllabus.
+              </p>
             </div>
-            <CardFooter>
-              <Button variant="outline">Cancel</Button>
-              <Button variant="primary">Save</Button>
-            </CardFooter>
-          </Card>
-        </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Next phase */}
-        {/* ---------------------------------------------------------------- */}
-        <section className="bg-surface border border-border rounded-lg p-6">
-          <p className="text-sm text-text-secondary">
-            <span className="font-medium text-text-primary">Next Step:</span>{" "}
-            Proceed to Phase 2 — Database + Core Domain Models. See{" "}
-            <code className="text-xs bg-background px-1.5 py-0.5 rounded border border-border font-mono">
-              docs/ROADMAP.md
-            </code>{" "}
-            for the full development plan.
+            <div className="flex flex-col items-center text-center p-6">
+              <div className="w-12 h-12 rounded-full bg-primary text-white font-bold text-lg flex items-center justify-center mb-4 shadow-xs">
+                2
+              </div>
+              <h3 className="text-base font-bold text-text-primary mb-1">
+                Take Interactive Tests
+              </h3>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                Solve realistic MCQs under timed conditions with instant answer evaluation.
+              </p>
+            </div>
+
+            <div className="flex flex-col items-center text-center p-6">
+              <div className="w-12 h-12 rounded-full bg-primary text-white font-bold text-lg flex items-center justify-center mb-4 shadow-xs">
+                3
+              </div>
+              <h3 className="text-base font-bold text-text-primary mb-1">
+                Analyze & Improve
+              </h3>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                Review verified solutions, learn from mistakes, and track your progress in your dashboard.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Bottom CTA Banner */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="py-16 bg-primary text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-4">
+            Start Your University Preparation Today
+          </h2>
+          <p className="text-primary-foreground/90 max-w-xl mx-auto mb-8 text-sm sm:text-base">
+            Create your student profile in less than a minute and begin practicing with official entrance test MCQs.
           </p>
-        </section>
-      </main>
-    </div>
-  );
-}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/student/register">
+              <Button size="lg" variant="secondary" className="px-8 font-bold">
+                Create Free Student Account
+              </Button>
+            </Link>
+            <Link href="/student/login">
+              <Button
+                size="lg"
+                variant="outline"
+                className="bg-transparent text-white border-white hover:bg-white/10"
+              >
+                Student Sign In
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
 
-// ---------------------------------------------------------------------------
-// Static data — configuration/labels only, no business data
-// ---------------------------------------------------------------------------
+      {/* ------------------------------------------------------------------ */}
+      {/* Public Footer with Admin Link */}
+      {/* ------------------------------------------------------------------ */}
+      <footer className="border-t border-border bg-surface py-12 text-sm text-text-secondary">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md bg-primary text-white flex items-center justify-center">
+              <GraduationCap className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-text-primary">{APP_NAME}</span>
+            <span className="text-xs text-text-secondary ml-2">
+              © {new Date().getFullYear()} PakSeekers. All rights reserved.
+            </span>
+          </div>
 
-const CHECKLIST_ITEMS: Array<{
-  title: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-}> = [
-  {
-    title: "Project Structure",
-    description: "src/app, components, features, lib, server, types",
-    icon: Layers,
-  },
-  {
-    title: "TypeScript (strict)",
-    description: "Strict mode, no any, path aliases configured",
-    icon: Settings,
-  },
-  {
-    title: "Design Token System",
-    description: "Colors, typography, radius — all in globals.css",
-    icon: BookOpen,
-  },
-  {
-    title: "UI Primitives",
-    description: "Button, Input, Card, Badge — design-token-driven",
-    icon: FileText,
-  },
-  {
-    title: "Prisma Foundation",
-    description: "Singleton client, schema configured for PostgreSQL",
-    icon: Database,
-  },
-  {
-    title: "Environment Config",
-    description: "Zod-validated env vars, .env.example provided",
-    icon: CheckCircle,
-  },
-];
-
-const COLOR_TOKENS: Array<{ name: string; value: string }> = [
-  { name: "Primary", value: "#123B63" },
-  { name: "Secondary", value: "#0F766E" },
-  { name: "Accent", value: "#F59E0B" },
-  { name: "Background", value: "#F8FAFC" },
-  { name: "Surface", value: "#FFFFFF" },
-  { name: "Text Primary", value: "#172033" },
-  { name: "Text Secondary", value: "#64748B" },
-  { name: "Border", value: "#E2E8F0" },
-  { name: "Success", value: "#16A34A" },
-  { name: "Error", value: "#DC2626" },
-  { name: "Warning", value: "#F59E0B" },
-  { name: "Disabled", value: "#94A3B8" },
-];
-
-// ---------------------------------------------------------------------------
-// Internal component — not exported
-// ---------------------------------------------------------------------------
-
-function FoundationCard({
-  title,
-  description,
-  icon: Icon,
-}: {
-  title: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <div className="flex gap-3 p-4 bg-surface border border-border rounded-lg">
-      <div className="w-9 h-9 bg-primary/10 rounded-md flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-primary" aria-hidden="true" />
-      </div>
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <p className="text-sm font-medium text-text-primary">{title}</p>
-        <p className="text-xs text-text-secondary leading-relaxed">{description}</p>
-      </div>
+          <div className="flex items-center gap-6 text-xs">
+            <Link href="/exams" className="hover:text-primary transition-colors">
+              Exam Catalog
+            </Link>
+            <Link href="/student/login" className="hover:text-primary transition-colors">
+              Student Portal
+            </Link>
+            <span className="h-3 w-px bg-border" />
+            <Link
+              href="/admin/login"
+              className="text-text-secondary hover:text-primary flex items-center gap-1 font-medium transition-colors"
+            >
+              <Shield className="w-3.5 h-3.5 text-text-secondary" />
+              <span>Admin Portal</span>
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

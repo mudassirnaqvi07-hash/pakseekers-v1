@@ -1,15 +1,13 @@
 /**
- * Admin Layout — establishes the structural boundary for all /admin/* routes.
+ * Admin Layout — establishes the structural and security boundary for all /admin/* routes.
  *
- * This layout wraps every admin page with the AdminShell (header + sidebar +
- * content area). It is the single source of layout truth for the admin panel.
- *
- * Authentication and authorization will be enforced here in Phase 3.
- * For now, the layout only establishes the structural/routing boundary.
+ * Enforces admin authorization. Unauthenticated users or non-admin roles
+ * are redirected to /admin/login.
  */
 
 import type { Metadata } from "next";
 import { AdminShell } from "@/components/shared";
+import { requireAdmin } from "@/server/auth/session";
 
 export const metadata: Metadata = {
   title: {
@@ -19,6 +17,12 @@ export const metadata: Metadata = {
   description: "PakSeekers administration panel.",
 };
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  await requireAdmin();
+
   return <AdminShell>{children}</AdminShell>;
 }

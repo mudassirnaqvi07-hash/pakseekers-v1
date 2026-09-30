@@ -6,9 +6,11 @@
  * elements, information-focused design per docs/DESIGN-SYSTEM.md.
  */
 
-import { BookOpen, Menu, X } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Menu, X, LogOut } from "lucide-react";
 import { APP_NAME } from "@/lib/config/app";
 import { cn } from "@/lib/utils/cn";
+import { logoutAdminAction } from "@/server/actions/auth-actions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,6 +73,26 @@ export function AdminHeader({ sidebarOpen, onSidebarToggle }: AdminHeaderProps) 
             Admin
           </span>
         </span>
+      </div>
+
+      {/* Right-side actions */}
+      <div className="ml-auto flex items-center gap-3">
+        <Link
+          href="/"
+          className="text-xs font-medium text-text-secondary hover:text-primary transition-colors hidden sm:inline"
+        >
+          View Public Site
+        </Link>
+        <span className="h-3 w-px bg-border hidden sm:inline" />
+        <form action={logoutAdminAction}>
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 text-xs font-medium text-text-secondary hover:text-error transition-colors px-2 py-1 rounded-md hover:bg-background"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </form>
       </div>
     </header>
   );
