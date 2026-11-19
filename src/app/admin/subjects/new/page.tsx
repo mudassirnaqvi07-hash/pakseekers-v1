@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { SubjectForm } from "@/features/admin/components/subject-form";
-import { getAllExams } from "@/server/repositories/content-repository";
+import { getAdminAllExams } from "@/server/services/content-service";
 import { createSubjectAction } from "@/server/actions/content-actions";
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ export default async function CreateSubjectPage({
   searchParams,
 }: CreateSubjectPageProps) {
   const { examId } = await searchParams;
-  const exams = getAllExams();
+  const exams = await getAdminAllExams();
 
   return (
     <div className="flex flex-col gap-6">

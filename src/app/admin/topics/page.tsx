@@ -4,11 +4,10 @@ import { PlusCircle, FileEdit, HelpCircle, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Badge, Button } from "@/components/ui";
 import {
-  getAllTopics,
-  getAllExams,
-  getSubjectById,
-  getExamById,
-} from "@/server/repositories/content-repository";
+  getAdminAllTopics,
+  getAdminAllExams,
+  getAdminAllSubjects,
+} from "@/server/services/content-service";
 import { deleteTopicAction } from "@/server/actions/content-actions";
 import { DeleteConfirmButton } from "@/features/admin/components/delete-confirm-button";
 
@@ -24,32 +23,38 @@ export default async function AdminTopicsPage({
   searchParams,
 }: AdminTopicsPageProps) {
   const { examId, subjectId } = await searchParams;
-  const exams = getAllExams();
-  const topics = getAllTopics(subjectId, examId);
+  const [exams, allSubjects, topics] = await Promise.all([
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+    getAdminAllTopics(subjectId, examId),
+  ]);
+
+  const subjectMap = new Map(allSubjects.map((s) => [s.id.toLowerCase(), s]));
+  const examMap = new Map(exams.map((e) => [e.id.toLowerCase(), e]));
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader
-          title="Topics Management"
-          description="Manage granular syllabus topics that group multiple-choice questions into practice modules."
-        />
-        <Link
-          href={
-            subjectId
-              ? `/admin/topics/new?subjectId=${subjectId}&examId=${examId || ""}`
-              : "/admin/topics/new"
-          }
-        >
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<PlusCircle className="w-4 h-4" />}
+      <PageHeader
+        title="Topics Management"
+        description="Manage granular syllabus topics that group multiple-choice questions into practice modules."
+        actions={
+          <Link
+            href={
+              subjectId
+                ? `/admin/topics/new?subjectId=${subjectId}&examId=${examId || ""}`
+                : "/admin/topics/new"
+            }
           >
-            Create Topic
-          </Button>
-        </Link>
-      </div>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<PlusCircle className="w-4 h-4" />}
+            >
+              Create Topic
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-2 p-3 bg-surface border border-border rounded-xl">
@@ -82,23 +87,23 @@ export default async function AdminTopicsPage({
       </div>
 
       {/* Topics Table */}
-      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden min-w-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[640px]">
             <thead className="bg-background border-b border-border text-xs font-semibold text-text-secondary uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Topic</th>
-                <th className="px-6 py-3.5">Subject & Exam</th>
-                <th className="px-6 py-3.5">Question Bank</th>
-                <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Topic</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Subject & Exam</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Question Bank</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Status</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {topics.length > 0 ? (
                 topics.map((topic) => {
-                  const subject = getSubjectById(topic.subjectId);
-                  const exam = getExamById(topic.examId);
+                  const subject = subjectMap.get(topic.subjectId.toLowerCase());
+                  const exam = examMap.get(topic.examId.toLowerCase());
 
                   return (
                     <tr key={topic.id} className="hover:bg-background/50 transition-colors">

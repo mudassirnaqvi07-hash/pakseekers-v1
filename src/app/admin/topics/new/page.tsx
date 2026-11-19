@@ -5,9 +5,9 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { TopicForm } from "@/features/admin/components/topic-form";
 import {
-  getAllExams,
-  getAllSubjects,
-} from "@/server/repositories/content-repository";
+  getAdminAllExams,
+  getAdminAllSubjects,
+} from "@/server/services/content-service";
 import { createTopicAction } from "@/server/actions/content-actions";
 
 export const metadata: Metadata = {
@@ -22,8 +22,10 @@ export default async function CreateTopicPage({
   searchParams,
 }: CreateTopicPageProps) {
   const { examId, subjectId } = await searchParams;
-  const exams = getAllExams();
-  const subjects = getAllSubjects();
+  const [exams, subjects] = await Promise.all([
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">

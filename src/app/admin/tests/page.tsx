@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlusCircle, FileEdit, Eye, ExternalLink } from "lucide-react";
+import { PlusCircle, FileEdit, Eye, ExternalLink, FileCode2 } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import {
-  getAllTests,
-  getAllExams,
-  getExamById,
-} from "@/server/repositories/content-repository";
+  getAdminAllTests,
+  getAdminAllExams,
+} from "@/server/services/content-service";
 import { deleteTestAction } from "@/server/actions/content-actions";
 import { DeleteConfirmButton } from "@/features/admin/components/delete-confirm-button";
 import { PublishToggleButton } from "@/features/admin/components/publish-toggle-button";
@@ -29,31 +28,44 @@ export default async function AdminTestsPage({
   searchParams,
 }: AdminTestsPageProps) {
   const { examId, subjectId, status } = await searchParams;
-  const exams = getAllExams();
-
-  const tests = getAllTests({
-    examId,
-    subjectId,
-    status: status as TestStatus | undefined,
-  });
+  const [exams, tests] = await Promise.all([
+    getAdminAllExams(),
+    getAdminAllTests({
+      examId,
+      subjectId,
+      status: status as TestStatus | undefined,
+    }),
+  ]);
+  const examMap = new Map(exams.map((e) => [e.id.toLowerCase(), e]));
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader
-          title="Test Management"
-          description="Create, structure, preview, and publish practice quizzes and diagnostic tests for students."
-        />
-        <Link href="/admin/tests/new">
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<PlusCircle className="w-4 h-4" />}
-          >
-            Create Test
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Test Management"
+        description="Create, structure, preview, and publish practice quizzes and diagnostic tests for students."
+        actions={
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <Link href="/admin/tests/import">
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileCode2 className="w-4 h-4" />}
+              >
+                Import from JSON
+              </Button>
+            </Link>
+            <Link href="/admin/tests/new">
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<PlusCircle className="w-4 h-4" />}
+              >
+                Create Test
+              </Button>
+            </Link>
+          </div>
+        }
+      />
 
       {/* Filter Toolbar */}
       <div className="flex flex-wrap items-center gap-2 p-3 bg-surface border border-border rounded-xl shadow-xs">
@@ -103,23 +115,23 @@ export default async function AdminTestsPage({
       </div>
 
       {/* Tests Table */}
-      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden min-w-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[700px]">
             <thead className="bg-background border-b border-border text-xs font-semibold text-text-secondary uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Test Title</th>
-                <th className="px-6 py-3.5">Exam & Subject</th>
-                <th className="px-6 py-3.5">Questions</th>
-                <th className="px-6 py-3.5">Duration</th>
-                <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Test Title</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Exam & Subject</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Questions</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Duration</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Status</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {tests.length > 0 ? (
                 tests.map((test) => {
-                  const parentExam = getExamById(test.examId);
+                  const parentExam = examMap.get(test.examId.toLowerCase());
 
                   return (
                     <tr key={test.id} className="hover:bg-background/50 transition-colors">

@@ -5,10 +5,10 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { QuestionForm } from "@/features/admin/components/question-form";
 import {
-  getAllExams,
-  getAllSubjects,
-  getAllTopics,
-} from "@/server/repositories/content-repository";
+  getAdminAllExams,
+  getAdminAllSubjects,
+  getAdminAllTopics,
+} from "@/server/services/content-service";
 import { createQuestionAction } from "@/server/actions/content-actions";
 
 export const metadata: Metadata = {
@@ -27,9 +27,11 @@ export default async function AddQuestionPage({
   searchParams,
 }: AddQuestionPageProps) {
   const { examId, subjectId, topicId } = await searchParams;
-  const exams = getAllExams();
-  const subjects = getAllSubjects();
-  const topics = getAllTopics();
+  const [exams, subjects, topics] = await Promise.all([
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+    getAdminAllTopics(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">

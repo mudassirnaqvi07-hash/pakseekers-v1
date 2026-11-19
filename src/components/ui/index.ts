@@ -22,3 +22,6 @@ export type { CardProps, CardHeaderProps, CardFooterProps } from "./card";
 
 export { Badge } from "./badge";
 export type { BadgeProps, BadgeVariant } from "./badge";
+
+export { Skeleton, SkeletonCard, SkeletonStatCard } from "./skeleton";
+export type { SkeletonProps } from "./skeleton";

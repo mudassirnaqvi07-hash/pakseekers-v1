@@ -1,14 +1,11 @@
 /**
  * Quiz Evaluation Utility — PakSeekers.
- *
- * Pure evaluation function comparing user answers against canonical correct answers.
- * Safe for both Client Components and Server Components.
  */
 
 import type {
   Question,
-  QuizEvaluationResult,
   QuestionResultItem,
+  QuizEvaluationResult,
   UserAnswers,
 } from "@/types";
 

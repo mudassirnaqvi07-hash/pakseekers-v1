@@ -10,7 +10,7 @@ import { Calendar, ArrowRight } from "lucide-react";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { PageHeader, EmptyState } from "@/components/shared";
 import { requireStudent } from "@/server/auth/session";
-import { getStudentAttempts } from "@/server/repositories/user-repository";
+import { getStudentAttempts } from "@/server/services/user-service";
 
 export const metadata: Metadata = {
   title: "My Attempts",
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 export default async function StudentAttemptsPage() {
   const user = await requireStudent();
-  const attempts = getStudentAttempts(user.id);
+  const attempts = await getStudentAttempts(user.id);
 
   return (
     <div className="flex flex-col gap-8 w-full">
@@ -56,7 +56,7 @@ export default async function StudentAttemptsPage() {
                       {attempt.testTitle}
                     </h3>
 
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-text-secondary mt-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-text-secondary mt-2">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
                         {new Date(attempt.completedAt).toLocaleDateString("en-US", {
@@ -101,9 +101,13 @@ export default async function StudentAttemptsPage() {
                     </div>
 
                     <Link href={`/student/attempts/${attempt.id}`}>
-                      <Button variant="outline" size="sm" className="h-8 text-xs px-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs px-3"
+                        rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                      >
                         View Result
-                        <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                       </Button>
                     </Link>
                   </div>

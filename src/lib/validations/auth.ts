@@ -30,8 +30,12 @@ export const studentRegisterSchema = z
       .email("Please enter a valid email."),
     password: z
       .string()
-      .min(6, "Password must be at least 6 characters.")
-      .max(100, "Password must be under 100 characters."),
+      .min(8, "Password must be at least 8 characters.")
+      .max(100, "Password must be under 100 characters.")
+      .regex(
+        /^(?=.*[A-Za-z])(?=.*\d)/,
+        "Password must contain at least one letter and one number."
+      ),
     confirmPassword: z
       .string()
       .min(1, "Please confirm your password."),
@@ -66,8 +70,8 @@ export const studentProfileSchema = z.object({
     .min(1, "Please select your education level."),
   institution: z
     .string()
-    .min(2, "Institution/College must be at least 2 characters.")
-    .max(150, "Institution must be under 150 characters."),
+    .optional()
+    .transform((val) => (val && val.trim().length > 0 ? val.trim() : "Not specified")),
   targetExam: z
     .string()
     .min(1, "Please select your target entry exam."),

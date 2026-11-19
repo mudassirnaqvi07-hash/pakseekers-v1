@@ -6,9 +6,9 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { SubjectForm } from "@/features/admin/components/subject-form";
 import {
-  getSubjectById,
-  getAllExams,
-} from "@/server/repositories/content-repository";
+  getAdminSubjectById,
+  getAdminAllExams,
+} from "@/server/services/content-service";
 import { updateSubjectAction } from "@/server/actions/content-actions";
 
 interface EditSubjectPageProps {
@@ -19,7 +19,7 @@ export async function generateMetadata({
   params,
 }: EditSubjectPageProps): Promise<Metadata> {
   const { id } = await params;
-  const subject = getSubjectById(id);
+  const subject = await getAdminSubjectById(id);
   return {
     title: subject ? `Edit ${subject.title} | PakSeekers Admin` : "Subject Not Found",
   };
@@ -27,8 +27,10 @@ export async function generateMetadata({
 
 export default async function EditSubjectPage({ params }: EditSubjectPageProps) {
   const { id } = await params;
-  const subject = getSubjectById(id);
-  const exams = getAllExams();
+  const [subject, exams] = await Promise.all([
+    getAdminSubjectById(id),
+    getAdminAllExams(),
+  ]);
 
   if (!subject) {
     notFound();

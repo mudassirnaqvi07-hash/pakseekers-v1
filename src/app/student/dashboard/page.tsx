@@ -16,15 +16,15 @@ import {
   Clock,
   BookOpen,
   Calendar,
+  Award,
+  AlertTriangle,
+  GraduationCap,
 } from "lucide-react";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { EmptyState } from "@/components/shared";
 import { requireStudent } from "@/server/auth/session";
-import {
-  getStudentDashboardStats,
-  getStudentAttempts,
-} from "@/server/repositories/user-repository";
-import { getAllTests, getAllExams } from "@/server/repositories/content-repository";
+import { getStudentDashboardStats, getStudentAttempts } from "@/server/services/user-service";
+import { getAllPublishedTests, getAllExams, getAllSubjects } from "@/server/services/content-service";
 
 export const metadata: Metadata = {
   title: "Student Dashboard",
@@ -34,11 +34,12 @@ export const metadata: Metadata = {
 export default async function StudentDashboardPage() {
   const user = await requireStudent();
 
-  const [stats, attempts, allTests, exams] = await Promise.all([
-    Promise.resolve(getStudentDashboardStats(user.id)),
-    Promise.resolve(getStudentAttempts(user.id)),
-    Promise.resolve(getAllTests({ status: "published" })),
-    Promise.resolve(getAllExams("active")),
+  const [stats, attempts, allTests, exams, subjects] = await Promise.all([
+    getStudentDashboardStats(user.id),
+    getStudentAttempts(user.id),
+    getAllPublishedTests(),
+    getAllExams(),
+    getAllSubjects(),
   ]);
 
   const recentAttempts = attempts.slice(0, 5);
@@ -68,15 +69,18 @@ export default async function StudentDashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <Link href="/student/tests">
-            <Button size="md" className="shadow-xs">
-              <FileCheck2 className="w-4 h-4 mr-1.5" />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
+          <Link href="/student/tests" className="w-full sm:w-auto">
+            <Button
+              size="md"
+              className="shadow-xs w-full sm:w-auto justify-center"
+              leftIcon={<FileCheck2 className="w-4 h-4" />}
+            >
               Take a Practice Test
             </Button>
           </Link>
-          <Link href="/student/profile">
-            <Button variant="outline" size="md">
+          <Link href="/student/profile" className="w-full sm:w-auto">
+            <Button variant="outline" size="md" className="w-full sm:w-auto justify-center">
               Edit Profile
             </Button>
           </Link>
@@ -84,69 +88,153 @@ export default async function StudentDashboardPage() {
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Metric Overview Cards (Real Data) */}
+      {/* Metric Overview Cards (Authoritative Database Analytics) */}
       {/* ------------------------------------------------------------------ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Tests Attempted */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        {/* Total Tests Attempted */}
         <Card className="shadow-2xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-text-secondary">Tests Attempted</p>
-              <h2 className="text-2xl font-bold text-text-primary mt-1">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Tests Attempted</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
                 {stats.testsAttempted}
               </h2>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <FileCheck2 className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <FileCheck2 className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Completed Tests */}
+        <Card className="shadow-2xs">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Completed</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
+                {stats.completedTests ?? stats.testsAttempted}
+              </h2>
+            </div>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>
         </Card>
 
         {/* Questions Solved */}
         <Card className="shadow-2xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-text-secondary">Questions Solved</p>
-              <h2 className="text-2xl font-bold text-text-primary mt-1">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Questions Solved</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
                 {stats.questionsSolved}
               </h2>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-accent/15 text-accent flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
+              <BarChart2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>
         </Card>
 
         {/* Average Score */}
         <Card className="shadow-2xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-text-secondary">Average Score</p>
-              <h2 className="text-2xl font-bold text-text-primary mt-1">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Average Score</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
                 {stats.averageScore !== null ? `${stats.averageScore}%` : "—"}
               </h2>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-info/10 text-info flex items-center justify-center">
-              <BarChart2 className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-info/10 text-info flex items-center justify-center shrink-0">
+              <Target className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>
         </Card>
 
-        {/* Target Exam Focus */}
-        <Card className="shadow-2xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-text-secondary">Target Exam</p>
-              <h2 className="text-xl font-bold text-text-primary mt-1 truncate max-w-[140px]">
-                {user.profile.targetExam || "MDCAT"}
+        {/* Best Score */}
+        <Card className="shadow-2xs col-span-2 sm:col-span-1 lg:col-span-1">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Best Score</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
+                {stats.bestScore !== null ? `${stats.bestScore}%` : "—"}
               </h2>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Target className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+              <Award className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Weak Areas Revision Alerts (< 60% Accuracy) */}
+      {/* ------------------------------------------------------------------ */}
+      {stats.weakAreas && stats.weakAreas.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            <h2 className="text-base font-bold text-text-primary">
+              Recommended Revisions & Weak Areas
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stats.weakAreas.map((area) => (
+              <Card
+                key={area.topicId}
+                className="border-amber-500/30 bg-amber-500/5 hover:border-amber-500/50 transition-colors shadow-2xs"
+              >
+                <CardContent className="p-4 flex flex-col justify-between gap-3">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[11px] font-semibold text-text-secondary truncate">
+                        {area.subjectTitle || "Curriculum Topic"}
+                      </span>
+                      <Badge variant="error" className="text-[10px] font-bold py-0">
+                        {area.accuracy}% Accuracy
+                      </Badge>
+                    </div>
+                    <h4 className="text-sm font-bold text-text-primary truncate">
+                      {area.topicTitle}
+                    </h4>
+                    <p className="text-xs text-text-secondary mt-1">
+                      {area.incorrectCount} incorrect out of {area.totalQuestions} question{area.totalQuestions === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-border/50 flex justify-end">
+                    {area.examId && area.topicId ? (
+                      <Link
+                        href={`/exams/${area.examId}/topics/${area.topicId}/practice`}
+                      >
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2.5"
+                          rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                        >
+                          Practice This Topic
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Link href="/student/tests">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2.5"
+                          rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                        >
+                          Practice Tests
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* Subject Preparation Progress (Calculated from Real Attempts) */}
@@ -214,6 +302,56 @@ export default async function StudentDashboardPage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
+      {/* Curriculum Disciplines & Subjects Quick Access */}
+      {/* ------------------------------------------------------------------ */}
+      {subjects && subjects.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-text-primary">
+                Curriculum Subjects
+              </h2>
+              <p className="text-xs text-text-secondary">
+                Explore dedicated subjects across MDCAT, ECAT, and NET syllabi
+              </p>
+            </div>
+            <Link
+              href="/exams"
+              className="text-xs font-semibold text-primary hover:underline inline-flex flex-row items-center gap-1 whitespace-nowrap shrink-0"
+            >
+              <span>Browse all exams</span>
+              <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {subjects.map((sub) => {
+              const exam = exams.find((e) => e.id === sub.examId);
+              return (
+                <Link
+                  key={sub.id}
+                  href={`/exams/${sub.examId}/subjects/${sub.id}`}
+                  className="group"
+                >
+                  <Card className="p-4 hover:border-primary/50 transition-all hover:shadow-xs group-hover:-translate-y-0.5">
+                    <div className="w-8 h-8 rounded-md bg-primary/10 text-primary flex items-center justify-center mb-2.5">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-sm font-bold text-text-primary group-hover:text-primary transition-colors truncate">
+                      {sub.title}
+                    </h4>
+                    <p className="text-[11px] text-text-secondary mt-0.5 truncate">
+                      {exam?.code || sub.examId.toUpperCase()} • {sub.totalTopics} Topics
+                    </p>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
       {/* 2-Column: Recent Attempts & Available Tests */}
       {/* ------------------------------------------------------------------ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -224,10 +362,10 @@ export default async function StudentDashboardPage() {
             {attempts.length > 0 && (
               <Link
                 href="/student/attempts"
-                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                className="text-xs font-semibold text-primary hover:underline inline-flex flex-row items-center gap-1 whitespace-nowrap shrink-0"
               >
-                View all ({attempts.length})
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>View all ({attempts.length})</span>
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
               </Link>
             )}
           </div>
@@ -305,10 +443,10 @@ export default async function StudentDashboardPage() {
             <h2 className="text-lg font-bold text-text-primary">Available Tests</h2>
             <Link
               href="/student/tests"
-              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              className="text-xs font-semibold text-primary hover:underline inline-flex flex-row items-center gap-1 whitespace-nowrap shrink-0"
             >
-              Browse all ({allTests.length})
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Browse all ({allTests.length})</span>
+              <ArrowRight className="w-3.5 h-3.5 shrink-0" />
             </Link>
           </div>
 
@@ -340,12 +478,13 @@ export default async function StudentDashboardPage() {
                     </div>
 
                     <div className="shrink-0">
-                      <Link
-                        href={`/exams/${test.examId}/topics/${test.topicId || "cell-biology"}/practice?testId=${test.id}`}
-                      >
-                        <Button size="sm" className="h-8 px-3 text-xs">
+                      <Link href={`/tests/${test.id}`}>
+                        <Button
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                          rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                        >
                           Start Test
-                          <ArrowRight className="w-3 h-3 ml-1" />
                         </Button>
                       </Link>
                     </div>

@@ -28,6 +28,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getAdminEntryPath } from "@/lib/config/admin-path";
 
 // Must match the constant in src/server/auth/session.ts
 const SESSION_COOKIE_NAME = "pakseekers_session";
@@ -55,11 +56,6 @@ const STUDENT_PROTECTED_PREFIXES = [
  */
 const EXAM_PRACTICE_SEGMENT = "/practice";
 
-/**
- * Auth pages — if an already-authenticated student visits these, redirect to dashboard.
- */
-const STUDENT_AUTH_PAGES = ["/student/login", "/student/register"] as const;
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -73,14 +69,11 @@ function isStudentProtectedRoute(pathname: string): boolean {
 }
 
 function isExamPracticeRoute(pathname: string): boolean {
-  // Matches /exams/.../practice and /exams/.../practice?testId=...
-  // The pathname does NOT include query params, so a simple endsWith check is enough.
-  return pathname.endsWith(EXAM_PRACTICE_SEGMENT);
-}
-
-function isStudentAuthPage(pathname: string): boolean {
-  return STUDENT_AUTH_PAGES.some(
-    (page) => pathname === page || pathname.startsWith(page + "/")
+  // Matches /exams/.../practice, /practice/:id, /tests/:id
+  return (
+    pathname.endsWith(EXAM_PRACTICE_SEGMENT) ||
+    pathname.startsWith("/practice/") ||
+    pathname.startsWith("/tests/")
   );
 }
 
@@ -98,18 +91,31 @@ function buildLoginRedirect(request: NextRequest): NextResponse {
 
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
+  // Normalize pathname by stripping trailing slashes for consistent segment matching
+  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const authenticated = hasSessionCookie(request);
+  const adminEntryPath = getAdminEntryPath();
 
-  // 1. Student auth pages — bounce authenticated users back to dashboard
-  if (isStudentAuthPage(pathname)) {
-    if (authenticated) {
-      return NextResponse.redirect(new URL("/student/dashboard", request.nextUrl));
+  // 1. Secret Admin Entry Path — rewrite internally to /admin/login while keeping URL intact
+  if (normalizedPath === adminEntryPath) {
+    return NextResponse.rewrite(new URL("/admin/login", request.nextUrl));
+  }
+
+  // 2. Direct /admin/login is denied / returns 404 Not Found to prevent URL disclosure
+  if (normalizedPath === "/admin/login") {
+    return NextResponse.rewrite(new URL("/not-found", request.nextUrl), { status: 404 });
+  }
+
+  // 3. Admin portal protected routes — edge redirect unauthenticated requests to the private entry path
+  if (normalizedPath.startsWith("/admin")) {
+    if (!authenticated) {
+      return NextResponse.redirect(new URL(adminEntryPath, request.nextUrl));
     }
     return NextResponse.next();
   }
 
-  // 2. Protected student portal routes
-  if (isStudentProtectedRoute(pathname)) {
+  // 2. Protected student portal routes (/student/dashboard, /student/tests, etc.)
+  if (isStudentProtectedRoute(normalizedPath)) {
     if (!authenticated) {
       return buildLoginRedirect(request);
     }
@@ -117,16 +123,20 @@ export function proxy(request: NextRequest): NextResponse {
   }
 
   // 3. Protected exam practice routes (interactive test canvas)
-  //    e.g. /exams/mdcat/topics/cell-biology/practice
+  //    e.g. /exams/mdcat/topics/cell-biology/practice, /practice/:id, /tests/:id
   //    Public topic info pages (/exams/mdcat/topics/cell-biology) are unaffected.
-  if (isExamPracticeRoute(pathname)) {
+  if (isExamPracticeRoute(normalizedPath)) {
     if (!authenticated) {
       return buildLoginRedirect(request);
     }
     return NextResponse.next();
   }
 
-  // 4. All other routes — public, pass through
+  // 4. Note: Auth pages (/student/login, /admin/login) are intentionally evaluated
+  //    by Server Components where the exact role (student vs admin) is resolved from the DB/store.
+  //    This avoids infinite redirect loops when an admin navigates to the student portal.
+
+  // 5. All other routes — public, pass through
   return NextResponse.next();
 }
 

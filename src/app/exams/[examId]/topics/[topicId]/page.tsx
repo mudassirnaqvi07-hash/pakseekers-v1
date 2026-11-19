@@ -16,7 +16,7 @@ import {
   getSubjectById,
   getQuestionsByTopicId,
   getTestsByTopicId,
-} from "@/features/exams/services/content-service";
+} from "@/server/services/content-service";
 import { Button, Badge } from "@/components/ui";
 import { getCurrentUser } from "@/server/auth/session";
 

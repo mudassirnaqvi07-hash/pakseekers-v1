@@ -11,18 +11,32 @@ export interface StudentProfile {
   institution: string; // e.g. "Punjab Group of Colleges", "KIPS", "APS", etc.
   targetExam: string; // e.g. "MDCAT", "FAST-NU", "NET", "NTS", "ECAT"
   phone?: string;
+  city?: string;
 }
+
+export type UserStatus = "active" | "suspended";
 
 export interface User {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  status?: UserStatus;
   passwordHash: string;
   profile: StudentProfile;
+  phone?: string;
+  targetExam?: string;
+  educationLevel?: string;
+  city?: string;
+  lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * Sanitized user object without sensitive credentials (passwordHash), safe for presentation.
+ */
+export type SafeUser = Omit<User, "passwordHash">;
 
 export interface UserSession {
   token: string;
@@ -65,9 +79,23 @@ export interface SubjectProgress {
   questionsSolved: number;
 }
 
+export interface WeakAreaItem {
+  topicId?: string;
+  topicTitle: string;
+  subjectTitle: string;
+  examId?: string;
+  accuracy: number;
+  totalQuestions: number;
+  incorrectCount: number;
+}
+
 export interface StudentDashboardStats {
   testsAttempted: number;
+  completedTests: number;
   questionsSolved: number;
   averageScore: number | null; // null if 0 attempts
+  bestScore: number | null;
+  recentScore: number | null;
   subjectProgress: SubjectProgress[];
+  weakAreas: WeakAreaItem[];
 }

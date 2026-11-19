@@ -9,7 +9,7 @@ import {
   getQuestionsByTopicId,
   getTestById,
   getQuestionsByIds,
-} from "@/features/exams/services/content-service";
+} from "@/server/services/content-service";
 import { QuizEngine } from "@/features/practice/components/quiz-engine";
 import { Button } from "@/components/ui";
 import { requireStudent } from "@/server/auth/session";
@@ -73,6 +73,7 @@ export default async function PracticePage({
   const subject = await getSubjectById(topic.subjectId);
   let questions = await getQuestionsByTopicId(topic.id);
   let activeTitle = topic.title;
+  let durationMinutes: number | undefined = undefined;
 
   if (testId) {
     const test = await getTestById(testId);
@@ -84,8 +85,18 @@ export default async function PracticePage({
     if (test.questionIds.length > 0) {
       questions = await getQuestionsByIds(test.questionIds);
       activeTitle = test.title;
+      durationMinutes = test.durationMinutes;
     }
   }
+
+  // Security: Sanitize questions before sending to the client browser.
+  // Strips correctAnswer and explanation so answer keys cannot be inspected via DevTools.
+  const sanitizedQuestions = questions.map((q) => {
+    const copy = { ...q };
+    delete (copy as { correctAnswer?: string }).correctAnswer;
+    delete (copy as { explanation?: string }).explanation;
+    return copy;
+  });
 
   const topicHref = `/exams/${exam.id}/topics/${topic.id}`;
 
@@ -93,51 +104,54 @@ export default async function PracticePage({
     <div className="flex flex-col gap-6">
       {/* Top Header & Breadcrumbs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
-        <nav aria-label="Breadcrumbs" className="flex items-center gap-2 text-xs text-text-secondary flex-wrap">
+        <nav aria-label="Breadcrumbs" className="flex items-center gap-1.5 sm:gap-2 text-xs text-text-secondary flex-wrap">
           <Link href="/exams" className="hover:text-primary transition-colors">
             Exams
           </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5 shrink-0" />
           <Link href={`/exams/${exam.id}`} className="hover:text-primary transition-colors">
             {exam.code}
           </Link>
           {subject && (
             <>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0" />
               <Link
                 href={`/exams/${exam.id}/subjects/${subject.id}`}
-                className="hover:text-primary transition-colors"
+                className="hover:text-primary transition-colors truncate max-w-[100px] sm:max-w-[140px]"
               >
                 {subject.title}
               </Link>
             </>
           )}
-          <ChevronRight className="w-3.5 h-3.5" />
-          <Link href={topicHref} className="hover:text-primary transition-colors truncate max-w-[160px]">
+          <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+          <Link href={topicHref} className="hover:text-primary transition-colors truncate max-w-[110px] sm:max-w-[160px]">
             {topic.title}
           </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <span className="font-semibold text-text-primary truncate max-w-[180px]">
+          <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold text-text-primary truncate max-w-[120px] sm:max-w-[180px]">
             {activeTitle}
           </span>
         </nav>
 
-        <Link href={topicHref}>
-          <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-            Exit Practice
-          </Button>
-        </Link>
+        <div className="self-end sm:self-auto shrink-0">
+          <Link href={topicHref}>
+            <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+              Exit Practice
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Quiz Engine Interactive Canvas */}
       <QuizEngine
-        questions={questions}
+        questions={sanitizedQuestions}
         topicTitle={activeTitle}
         topicHref={topicHref}
         examId={exam.id}
         subjectId={subject?.id}
         topicId={topic.id}
         testId={testId}
+        durationMinutes={durationMinutes}
       />
     </div>
   );

@@ -17,15 +17,28 @@ export type {
 } from "./common";
 
 export type {
+  ClientQuestion,
+  ContentDefaultsSettings,
   ContentStatus,
+  ExaminationSettings,
   Exam,
+  GeneralSettings,
+  Lesson,
+  LessonStatus,
+  PlatformConfigSettings,
+  PlatformSettings,
   Question,
   QuestionDifficulty,
   QuestionOption,
+  QuestionReport,
+  QuestionReportReason,
+  QuestionReportStatus,
   QuestionResultItem,
   QuestionStatus,
   QuizEvaluationResult,
+  Section,
   Subject,
+  SystemSecurityStatus,
   Test,
   TestDifficulty,
   TestStatus,
@@ -34,6 +47,7 @@ export type {
 } from "./content";
 
 export type {
+  SafeUser,
   StudentDashboardStats,
   StudentProfile,
   SubjectProgress,
@@ -41,5 +55,7 @@ export type {
   User,
   UserRole,
   UserSession,
+  UserStatus,
+  WeakAreaItem,
 } from "./auth";
 

@@ -4,10 +4,9 @@ import { PlusCircle, FileEdit, BookOpen, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Badge, Button } from "@/components/ui";
 import {
-  getAllSubjects,
-  getAllExams,
-  getExamById,
-} from "@/server/repositories/content-repository";
+  getAdminAllSubjects,
+  getAdminAllExams,
+} from "@/server/services/content-service";
 import { deleteSubjectAction } from "@/server/actions/content-actions";
 import { DeleteConfirmButton } from "@/features/admin/components/delete-confirm-button";
 
@@ -23,47 +22,57 @@ export default async function AdminSubjectsPage({
   searchParams,
 }: AdminSubjectsPageProps) {
   const { examId } = await searchParams;
-  const exams = getAllExams();
-  const subjects = getAllSubjects(examId);
+  const [exams, allSubjects] = await Promise.all([
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+  ]);
+
+  const subjects = examId
+    ? allSubjects.filter((s) => s.examId.toLowerCase() === examId.toLowerCase())
+    : allSubjects;
+
+  const examMap = new Map(exams.map((e) => [e.id.toLowerCase(), e]));
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader
-          title="Subjects Management"
-          description="Manage academic subject disciplines belonging to entrance examination tracks."
-        />
-        <Link href={examId ? `/admin/subjects/new?examId=${examId}` : "/admin/subjects/new"}>
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<PlusCircle className="w-4 h-4" />}
-          >
-            Create Subject
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Subjects Management"
+        description="Manage academic subject disciplines belonging to entrance examination tracks."
+        actions={
+          <Link href={examId ? `/admin/subjects/new?examId=${examId}` : "/admin/subjects/new"}>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<PlusCircle className="w-4 h-4" />}
+            >
+              Create Subject
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Filter bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
-        <Link href="/admin/subjects">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        <Link href="/admin/subjects" className="shrink-0">
           <Button
             size="sm"
             variant={!examId ? "primary" : "outline"}
-            className="text-xs h-8"
+            className="text-xs h-8 whitespace-nowrap"
           >
-            All Exams ({getAllSubjects().length})
+            All Exams ({allSubjects.length})
           </Button>
         </Link>
         {exams.map((e) => {
           const isSelected = examId?.toLowerCase() === e.id.toLowerCase();
-          const count = getAllSubjects(e.id).length;
+          const count = allSubjects.filter(
+            (s) => s.examId.toLowerCase() === e.id.toLowerCase()
+          ).length;
           return (
-            <Link key={e.id} href={`/admin/subjects?examId=${e.id}`}>
+            <Link key={e.id} href={`/admin/subjects?examId=${e.id}`} className="shrink-0">
               <Button
                 size="sm"
                 variant={isSelected ? "primary" : "outline"}
-                className="text-xs h-8"
+                className="text-xs h-8 whitespace-nowrap"
               >
                 {e.code} ({count})
               </Button>
@@ -73,22 +82,22 @@ export default async function AdminSubjectsPage({
       </div>
 
       {/* Subjects Table */}
-      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden min-w-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[640px]">
             <thead className="bg-background border-b border-border text-xs font-semibold text-text-secondary uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Subject</th>
-                <th className="px-6 py-3.5">Parent Exam</th>
-                <th className="px-6 py-3.5">Topics</th>
-                <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Subject</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Parent Exam</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Topics</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Status</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {subjects.length > 0 ? (
                 subjects.map((subject) => {
-                  const parentExam = getExamById(subject.examId);
+                  const parentExam = examMap.get(subject.examId.toLowerCase());
                   return (
                     <tr key={subject.id} className="hover:bg-background/50 transition-colors">
                       <td className="px-6 py-4 align-top max-w-sm">

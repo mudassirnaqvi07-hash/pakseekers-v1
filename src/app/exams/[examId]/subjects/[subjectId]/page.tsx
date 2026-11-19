@@ -6,7 +6,7 @@ import {
   getExamById,
   getSubjectById,
   getTopicsBySubjectId,
-} from "@/features/exams/services/content-service";
+} from "@/server/services/content-service";
 import { TopicCard } from "@/features/exams/components/topic-card";
 import { Button } from "@/components/ui";
 

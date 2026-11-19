@@ -12,7 +12,10 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui";
 
 interface DeleteConfirmButtonProps {
-  onDelete: () => Promise<{ success: boolean; error?: string }>;
+  onDelete?: () => Promise<{ success: boolean; error?: string }>;
+  itemId?: string;
+  itemTitle?: string;
+  deleteAction?: (id: string) => Promise<{ success: boolean; error?: string }>;
   itemType?: string;
   size?: "sm" | "md";
   iconOnly?: boolean;
@@ -20,6 +23,9 @@ interface DeleteConfirmButtonProps {
 
 export function DeleteConfirmButton({
   onDelete,
+  itemId,
+  itemTitle,
+  deleteAction,
   itemType = "item",
   size = "sm",
   iconOnly = false,
@@ -31,7 +37,12 @@ export function DeleteConfirmButton({
   const handleConfirm = () => {
     startTransition(async () => {
       setError(null);
-      const res = await onDelete();
+      const res =
+        deleteAction && itemId
+          ? await deleteAction(itemId)
+          : onDelete
+          ? await onDelete()
+          : { success: false, error: "No action provided" };
       if (!res.success) {
         setError(res.error || "Failed to delete");
         setIsConfirming(false);
@@ -42,6 +53,11 @@ export function DeleteConfirmButton({
   if (isConfirming) {
     return (
       <div className="flex items-center gap-1.5 animate-in fade-in">
+        {itemTitle && (
+          <span className="text-[10px] text-text-secondary max-w-[100px] truncate hidden sm:inline">
+            {itemTitle}
+          </span>
+        )}
         <Button
           type="button"
           variant="danger"
@@ -75,9 +91,9 @@ export function DeleteConfirmButton({
       onClick={() => setIsConfirming(true)}
       className="text-text-secondary hover:text-error hover:bg-red-50 transition-colors"
       title={`Delete this ${itemType}`}
+      leftIcon={<Trash2 className="w-3.5 h-3.5" />}
     >
-      <Trash2 className="w-3.5 h-3.5" />
-      {!iconOnly && <span className="ml-1 text-xs">Delete</span>}
+      {!iconOnly ? <span className="text-xs">Delete</span> : undefined}
     </Button>
   );
 }

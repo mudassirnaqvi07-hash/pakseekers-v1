@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils/cn";
 
 export type BadgeVariant =
   | "default"
+  | "neutral"
   | "success"
   | "error"
   | "warning"
@@ -31,8 +32,9 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 // ---------------------------------------------------------------------------
 
 const variantStyles: Record<BadgeVariant, string> = {
-  // Neutral — default state
+  // Default & Neutral state
   default: "bg-background text-text-secondary border-border",
+  neutral: "bg-background text-text-secondary border-border",
   // Draft — neutral, content not yet ready
   draft: "bg-background text-text-secondary border-border",
   // Success / Published / Correct
@@ -49,6 +51,7 @@ const variantStyles: Record<BadgeVariant, string> = {
 
 const dotStyles: Record<BadgeVariant, string> = {
   default: "bg-text-secondary",
+  neutral: "bg-text-secondary",
   draft: "bg-text-secondary",
   success: "bg-success",
   error: "bg-error",

@@ -15,7 +15,13 @@ export const metadata: Metadata = {
     template: "%s | Admin | PakSeekers",
   },
   description: "PakSeekers administration panel.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({
   children,

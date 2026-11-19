@@ -1,129 +1,44 @@
+import "server-only";
+
 /**
- * Content Repository — PakSeekers Phase 3.
+ * MongoDB Content Repository — PakSeekers Phase 1.
  *
- * Single source of truth for Exams, Subjects, Topics, Questions, and Tests.
- * Thread-safe, file-backed persistent store that pre-seeds from sample-data.ts.
- * Both the Admin CMS and the Student Platform read from and write to this repository.
+ * Implements high-performance, indexed MongoDB Atlas persistence for:
+ *   Exams, Subjects, Topics, Questions, and Tests.
+ *
+ * Follows the Modular Monolith + DDD architecture:
+ *   Presentation (app/) -> Application Services (content-service.ts) -> Content Repository -> MongoDB Atlas
  */
 
-import fs from "fs";
-import path from "path";
+import {
+  getMongoDb,
+  COLLECTIONS,
+  toDomainEntity,
+  toDomainEntities,
+  type ExamDoc,
+  type SubjectDoc,
+  type TopicDoc,
+  type QuestionDoc,
+  type TestDoc,
+  type SectionDoc,
+  type LessonDoc,
+} from "@/server/db";
 import type {
   Exam,
   Subject,
   Topic,
   Question,
+  QuestionOption,
   Test,
   ContentStatus,
   QuestionDifficulty,
   QuestionStatus,
+  TestDifficulty,
   TestStatus,
+  Section,
+  Lesson,
+  LessonStatus,
 } from "@/types";
-import {
-  SAMPLE_EXAMS,
-  SAMPLE_SUBJECTS,
-  SAMPLE_TOPICS,
-  SAMPLE_QUESTIONS,
-  SAMPLE_TESTS,
-} from "@/features/exams/data/sample-data";
-
-interface ContentStoreData {
-  exams: Exam[];
-  subjects: Subject[];
-  topics: Topic[];
-  questions: Question[];
-  tests: Test[];
-}
-
-const DATA_DIR = path.join(process.cwd(), "src", "data");
-const STORE_FILE = path.join(DATA_DIR, "content-store.json");
-
-// In-memory cache for fast read/write
-let cachedData: ContentStoreData | null = null;
-
-/**
- * Initializes and retrieves the content store data.
- */
-function getStore(): ContentStoreData {
-  if (cachedData) {
-    return cachedData;
-  }
-
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    if (fs.existsSync(STORE_FILE)) {
-      const raw = fs.readFileSync(STORE_FILE, "utf-8");
-      cachedData = JSON.parse(raw) as ContentStoreData;
-    } else {
-      // Initialize with seed data
-      cachedData = {
-        exams: JSON.parse(JSON.stringify(SAMPLE_EXAMS)),
-        subjects: JSON.parse(JSON.stringify(SAMPLE_SUBJECTS)),
-        topics: JSON.parse(JSON.stringify(SAMPLE_TOPICS)),
-        questions: JSON.parse(JSON.stringify(SAMPLE_QUESTIONS)),
-        tests: JSON.parse(JSON.stringify(SAMPLE_TESTS)),
-      };
-      fs.writeFileSync(STORE_FILE, JSON.stringify(cachedData, null, 2), "utf-8");
-    }
-  } catch (error) {
-    console.error("Error loading content store, falling back to sample data:", error);
-    cachedData = {
-      exams: JSON.parse(JSON.stringify(SAMPLE_EXAMS)),
-      subjects: JSON.parse(JSON.stringify(SAMPLE_SUBJECTS)),
-      topics: JSON.parse(JSON.stringify(SAMPLE_TOPICS)),
-      questions: JSON.parse(JSON.stringify(SAMPLE_QUESTIONS)),
-      tests: JSON.parse(JSON.stringify(SAMPLE_TESTS)),
-    };
-  }
-
-  return cachedData;
-}
-
-/**
- * Persists the current in-memory store to disk.
- */
-function saveStore(data: ContentStoreData): void {
-  cachedData = data;
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), "utf-8");
-  } catch (error) {
-    console.error("Error saving content store to disk:", error);
-  }
-}
-
-function updateDerivedCounts(store: ContentStoreData): void {
-  // Update subject totalTopics
-  store.subjects.forEach((subj) => {
-    subj.totalTopics = store.topics.filter(
-      (t) => t.subjectId.toLowerCase() === subj.id.toLowerCase()
-    ).length;
-  });
-
-  // Update exam totalSubjects
-  store.exams.forEach((exam) => {
-    exam.totalSubjects = store.subjects.filter(
-      (s) => s.examId.toLowerCase() === exam.id.toLowerCase()
-    ).length;
-  });
-
-  // Update topic questionCount
-  store.topics.forEach((topic) => {
-    topic.questionCount = store.questions.filter(
-      (q) => q.topicId.toLowerCase() === topic.id.toLowerCase()
-    ).length;
-  });
-
-  // Update test questionCount
-  store.tests.forEach((test) => {
-    test.questionCount = test.questionIds.length;
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Dashboard Metrics
@@ -139,16 +54,34 @@ export interface DashboardStats {
   draftTests: number;
 }
 
-export function getDashboardStats(): DashboardStats {
-  const store = getStore();
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const db = await getMongoDb();
+  const [
+    totalExams,
+    totalSubjects,
+    totalTopics,
+    totalQuestions,
+    totalTests,
+    publishedTests,
+    draftTests,
+  ] = await Promise.all([
+    db.collection(COLLECTIONS.EXAMS).countDocuments(),
+    db.collection(COLLECTIONS.SUBJECTS).countDocuments(),
+    db.collection(COLLECTIONS.TOPICS).countDocuments(),
+    db.collection(COLLECTIONS.QUESTIONS).countDocuments(),
+    db.collection(COLLECTIONS.TESTS).countDocuments(),
+    db.collection(COLLECTIONS.TESTS).countDocuments({ status: "published" }),
+    db.collection(COLLECTIONS.TESTS).countDocuments({ status: "draft" }),
+  ]);
+
   return {
-    totalExams: store.exams.length,
-    totalSubjects: store.subjects.length,
-    totalTopics: store.topics.length,
-    totalQuestions: store.questions.length,
-    totalTests: store.tests.length,
-    publishedTests: store.tests.filter((t) => t.status === "published").length,
-    draftTests: store.tests.filter((t) => t.status === "draft").length,
+    totalExams,
+    totalSubjects,
+    totalTopics,
+    totalQuestions,
+    totalTests,
+    publishedTests,
+    draftTests,
   };
 }
 
@@ -156,34 +89,50 @@ export function getDashboardStats(): DashboardStats {
 // Exam Operations
 // ---------------------------------------------------------------------------
 
-export function getAllExams(status?: ContentStatus): Exam[] {
-  const store = getStore();
-  if (status) {
-    return store.exams.filter((e) => e.status === status);
-  }
-  return [...store.exams];
+export async function getAllExams(status?: ContentStatus): Promise<Exam[]> {
+  const db = await getMongoDb();
+  const filter = status ? { status } : {};
+  const docs = await db
+    .collection<ExamDoc>(COLLECTIONS.EXAMS)
+    .find(filter)
+    .sort({ title: 1 })
+    .toArray();
+  return toDomainEntities<Exam>(docs);
 }
 
-export function getExamById(id: string): Exam | null {
-  const store = getStore();
-  const exam = store.exams.find((e) => e.id.toLowerCase() === id.toLowerCase());
-  return exam ? { ...exam } : null;
+export async function getExamById(id: string): Promise<Exam | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<ExamDoc>(COLLECTIONS.EXAMS).findOne({
+    $or: [{ id }, { id: id.toLowerCase() }, { code: id.toUpperCase() }],
+  });
+  return doc ? toDomainEntity<Exam>(doc) : null;
 }
 
-export function createExam(input: {
+export async function createExam(input: {
   title: string;
   code: string;
   description: string;
   status: ContentStatus;
-}): Exam {
-  const store = getStore();
-  const now = new Date().toISOString();
-  const id = input.code.toLowerCase().replace(/[^a-z0-9]/g, "-") || `exam-${Date.now()}`;
+}): Promise<Exam> {
+  const db = await getMongoDb();
+  const normalizedCode = input.code.trim().toUpperCase();
+  const baseId = normalizedCode.toLowerCase().replace(/[^a-z0-9]/g, "-") || `exam-${Date.now()}`;
 
+  // Check unique constraints
+  const existing = await db.collection<ExamDoc>(COLLECTIONS.EXAMS).findOne({
+    $or: [{ id: baseId }, { code: normalizedCode }],
+  });
+
+  if (existing) {
+    throw new Error(`An entrance exam with code '${normalizedCode}' already exists.`);
+  }
+
+  const now = new Date().toISOString();
   const newExam: Exam = {
-    id,
+    id: baseId,
     title: input.title.trim(),
-    code: input.code.trim().toUpperCase(),
+    code: normalizedCode,
     description: input.description.trim(),
     totalSubjects: 0,
     status: input.status,
@@ -191,13 +140,11 @@ export function createExam(input: {
     updatedAt: now,
   };
 
-  store.exams.push(newExam);
-  updateDerivedCounts(store);
-  saveStore(store);
+  await db.collection<ExamDoc>(COLLECTIONS.EXAMS).insertOne(newExam as ExamDoc);
   return newExam;
 }
 
-export function updateExam(
+export async function updateExam(
   id: string,
   input: Partial<{
     title: string;
@@ -205,33 +152,46 @@ export function updateExam(
     description: string;
     status: ContentStatus;
   }>
-): Exam | null {
-  const store = getStore();
-  const index = store.exams.findIndex((e) => e.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return null;
+): Promise<Exam | null> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
 
-  const existing = store.exams[index];
-  const updated: Exam = {
-    ...existing,
-    ...(input.title && { title: input.title.trim() }),
-    ...(input.code && { code: input.code.trim().toUpperCase() }),
-    ...(input.description !== undefined && { description: input.description.trim() }),
-    ...(input.status && { status: input.status }),
-    updatedAt: new Date().toISOString(),
+  const updateFields: Record<string, unknown> = {
+    updatedAt: now,
   };
 
-  store.exams[index] = updated;
-  saveStore(store);
-  return updated;
+  if (input.title !== undefined) updateFields.title = input.title.trim();
+  if (input.code !== undefined) updateFields.code = input.code.trim().toUpperCase();
+  if (input.description !== undefined) updateFields.description = input.description.trim();
+  if (input.status !== undefined) updateFields.status = input.status;
+
+  const result = await db.collection<ExamDoc>(COLLECTIONS.EXAMS).findOneAndUpdate(
+    { $or: [{ id }, { id: id.toLowerCase() }] },
+    { $set: updateFields },
+    { returnDocument: "after" }
+  );
+
+  return result ? toDomainEntity<Exam>(result) : null;
 }
 
-export function deleteExam(id: string): boolean {
-  const store = getStore();
-  const index = store.exams.findIndex((e) => e.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return false;
+export async function deleteExam(id: string): Promise<boolean> {
+  const db = await getMongoDb();
+  const lowerId = id.toLowerCase();
 
-  store.exams.splice(index, 1);
-  saveStore(store);
+  const deleteRes = await db.collection<ExamDoc>(COLLECTIONS.EXAMS).deleteOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  if (deleteRes.deletedCount === 0) return false;
+
+  // Cascade clean-up in MongoDB
+  await Promise.all([
+    db.collection(COLLECTIONS.SUBJECTS).deleteMany({ examId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.TOPICS).deleteMany({ examId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.QUESTIONS).deleteMany({ examId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.TESTS).deleteMany({ examId: { $in: [id, lowerId] } }),
+  ]);
+
   return true;
 }
 
@@ -239,32 +199,46 @@ export function deleteExam(id: string): boolean {
 // Subject Operations
 // ---------------------------------------------------------------------------
 
-export function getAllSubjects(examId?: string): Subject[] {
-  const store = getStore();
-  if (examId) {
-    return store.subjects.filter((s) => s.examId.toLowerCase() === examId.toLowerCase());
-  }
-  return [...store.subjects];
+export async function getAllSubjects(examId?: string): Promise<Subject[]> {
+  const db = await getMongoDb();
+  const filter = examId ? { examId: { $in: [examId, examId.toLowerCase()] } } : {};
+  const docs = await db
+    .collection<SubjectDoc>(COLLECTIONS.SUBJECTS)
+    .find(filter)
+    .sort({ title: 1 })
+    .toArray();
+  return toDomainEntities<Subject>(docs);
 }
 
-export function getSubjectById(id: string): Subject | null {
-  const store = getStore();
-  const subject = store.subjects.find((s) => s.id.toLowerCase() === id.toLowerCase());
-  return subject ? { ...subject } : null;
+export async function getSubjectById(id: string): Promise<Subject | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<SubjectDoc>(COLLECTIONS.SUBJECTS).findOne({
+    $or: [{ id }, { id: id.toLowerCase() }],
+  });
+  return doc ? toDomainEntity<Subject>(doc) : null;
 }
 
-export function createSubject(input: {
+export async function createSubject(input: {
   examId: string;
   title: string;
   description: string;
   icon?: string;
   status?: ContentStatus;
-}): Subject {
-  const store = getStore();
-  const now = new Date().toISOString();
-  const slug = input.title.toLowerCase().replace(/[^a-z0-9]/g, "-") || `subject-${Date.now()}`;
-  const id = `${input.examId.toLowerCase()}-${slug}`;
+}): Promise<Subject> {
+  const db = await getMongoDb();
+  const slug = input.title.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  let id = `${input.examId.toLowerCase()}-${slug}`;
 
+  const existing = await db.collection<SubjectDoc>(COLLECTIONS.SUBJECTS).findOne({
+    id: { $in: [id, id.toLowerCase()] },
+  });
+
+  if (existing) {
+    id = `${id}-${Date.now().toString(36)}`;
+  }
+
+  const now = new Date().toISOString();
   const newSubject: Subject = {
     id,
     examId: input.examId,
@@ -277,13 +251,17 @@ export function createSubject(input: {
     updatedAt: now,
   };
 
-  store.subjects.push(newSubject);
-  updateDerivedCounts(store);
-  saveStore(store);
+  await db.collection<SubjectDoc>(COLLECTIONS.SUBJECTS).insertOne(newSubject as SubjectDoc);
+
+  // Increment parent exam totalSubjects
+  await db
+    .collection<ExamDoc>(COLLECTIONS.EXAMS)
+    .updateOne({ id: input.examId }, { $inc: { totalSubjects: 1 } });
+
   return newSubject;
 }
 
-export function updateSubject(
+export async function updateSubject(
   id: string,
   input: Partial<{
     examId: string;
@@ -292,36 +270,51 @@ export function updateSubject(
     icon?: string;
     status?: ContentStatus;
   }>
-): Subject | null {
-  const store = getStore();
-  const index = store.subjects.findIndex((s) => s.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return null;
+): Promise<Subject | null> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
 
-  const existing = store.subjects[index];
-  const updated: Subject = {
-    ...existing,
-    ...(input.examId && { examId: input.examId }),
-    ...(input.title && { title: input.title.trim() }),
-    ...(input.description !== undefined && { description: input.description.trim() }),
-    ...(input.icon !== undefined && { icon: input.icon }),
-    ...(input.status && { status: input.status }),
-    updatedAt: new Date().toISOString(),
+  const updateFields: Record<string, unknown> = {
+    updatedAt: now,
   };
 
-  store.subjects[index] = updated;
-  updateDerivedCounts(store);
-  saveStore(store);
-  return updated;
+  if (input.examId !== undefined) updateFields.examId = input.examId;
+  if (input.title !== undefined) updateFields.title = input.title.trim();
+  if (input.description !== undefined) updateFields.description = input.description.trim();
+  if (input.icon !== undefined) updateFields.icon = input.icon;
+  if (input.status !== undefined) updateFields.status = input.status;
+
+  const result = await db.collection<SubjectDoc>(COLLECTIONS.SUBJECTS).findOneAndUpdate(
+    { $or: [{ id }, { id: id.toLowerCase() }] },
+    { $set: updateFields },
+    { returnDocument: "after" }
+  );
+
+  return result ? toDomainEntity<Subject>(result) : null;
 }
 
-export function deleteSubject(id: string): boolean {
-  const store = getStore();
-  const index = store.subjects.findIndex((s) => s.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return false;
+export async function deleteSubject(id: string): Promise<boolean> {
+  const db = await getMongoDb();
+  const lowerId = id.toLowerCase();
 
-  store.subjects.splice(index, 1);
-  updateDerivedCounts(store);
-  saveStore(store);
+  const subject = await db.collection<SubjectDoc>(COLLECTIONS.SUBJECTS).findOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  if (!subject) return false;
+
+  await db.collection<SubjectDoc>(COLLECTIONS.SUBJECTS).deleteOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  // Cascade clean-up
+  await Promise.all([
+    db.collection(COLLECTIONS.TOPICS).deleteMany({ subjectId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.QUESTIONS).deleteMany({ subjectId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.TESTS).deleteMany({ subjectId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.EXAMS).updateOne({ id: subject.examId }, { $inc: { totalSubjects: -1 } }),
+  ]);
+
   return true;
 }
 
@@ -329,40 +322,57 @@ export function deleteSubject(id: string): boolean {
 // Topic Operations
 // ---------------------------------------------------------------------------
 
-export function getAllTopics(subjectId?: string, examId?: string): Topic[] {
-  const store = getStore();
-  let results = store.topics;
-  if (examId) {
-    results = results.filter((t) => t.examId.toLowerCase() === examId.toLowerCase());
-  }
+export async function getAllTopics(subjectId?: string, examId?: string): Promise<Topic[]> {
+  const db = await getMongoDb();
+  const filter: Record<string, unknown> = {};
+
   if (subjectId) {
-    results = results.filter((t) => t.subjectId.toLowerCase() === subjectId.toLowerCase());
+    filter.subjectId = { $in: [subjectId, subjectId.toLowerCase()] };
   }
-  return [...results];
+  if (examId) {
+    filter.examId = { $in: [examId, examId.toLowerCase()] };
+  }
+
+  const docs = await db
+    .collection<TopicDoc>(COLLECTIONS.TOPICS)
+    .find(filter)
+    .sort({ title: 1 })
+    .toArray();
+  return toDomainEntities<Topic>(docs);
 }
 
-export function getTopicById(id: string): Topic | null {
-  const store = getStore();
-  const topic = store.topics.find((t) => t.id.toLowerCase() === id.toLowerCase());
-  return topic ? { ...topic } : null;
+export async function getTopicById(id: string): Promise<Topic | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<TopicDoc>(COLLECTIONS.TOPICS).findOne({
+    $or: [{ id }, { id: id.toLowerCase() }],
+  });
+  return doc ? toDomainEntity<Topic>(doc) : null;
 }
 
-export function createTopic(input: {
+export async function createTopic(input: {
   examId: string;
   subjectId: string;
   title: string;
   description: string;
   status?: ContentStatus;
-}): Topic {
-  const store = getStore();
-  const now = new Date().toISOString();
-  const slug = input.title.toLowerCase().replace(/[^a-z0-9]/g, "-") || `topic-${Date.now()}`;
-  const id = `${input.subjectId.toLowerCase()}-${slug}`;
+}): Promise<Topic> {
+  const db = await getMongoDb();
+  let id = input.title.toLowerCase().replace(/[^a-z0-9]/g, "-") || `topic-${Date.now()}`;
 
+  const existing = await db.collection<TopicDoc>(COLLECTIONS.TOPICS).findOne({
+    id: { $in: [id, id.toLowerCase()] },
+  });
+
+  if (existing) {
+    id = `${id}-${Date.now().toString(36)}`;
+  }
+
+  const now = new Date().toISOString();
   const newTopic: Topic = {
     id,
-    examId: input.examId,
     subjectId: input.subjectId,
+    examId: input.examId,
     title: input.title.trim(),
     description: input.description.trim(),
     questionCount: 0,
@@ -371,13 +381,17 @@ export function createTopic(input: {
     updatedAt: now,
   };
 
-  store.topics.push(newTopic);
-  updateDerivedCounts(store);
-  saveStore(store);
+  await db.collection<TopicDoc>(COLLECTIONS.TOPICS).insertOne(newTopic as TopicDoc);
+
+  // Increment parent subject totalTopics
+  await db
+    .collection<SubjectDoc>(COLLECTIONS.SUBJECTS)
+    .updateOne({ id: input.subjectId }, { $inc: { totalTopics: 1 } });
+
   return newTopic;
 }
 
-export function updateTopic(
+export async function updateTopic(
   id: string,
   input: Partial<{
     examId: string;
@@ -386,36 +400,50 @@ export function updateTopic(
     description: string;
     status?: ContentStatus;
   }>
-): Topic | null {
-  const store = getStore();
-  const index = store.topics.findIndex((t) => t.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return null;
+): Promise<Topic | null> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
 
-  const existing = store.topics[index];
-  const updated: Topic = {
-    ...existing,
-    ...(input.examId && { examId: input.examId }),
-    ...(input.subjectId && { subjectId: input.subjectId }),
-    ...(input.title && { title: input.title.trim() }),
-    ...(input.description !== undefined && { description: input.description.trim() }),
-    ...(input.status && { status: input.status }),
-    updatedAt: new Date().toISOString(),
+  const updateFields: Record<string, unknown> = {
+    updatedAt: now,
   };
 
-  store.topics[index] = updated;
-  updateDerivedCounts(store);
-  saveStore(store);
-  return updated;
+  if (input.examId !== undefined) updateFields.examId = input.examId;
+  if (input.subjectId !== undefined) updateFields.subjectId = input.subjectId;
+  if (input.title !== undefined) updateFields.title = input.title.trim();
+  if (input.description !== undefined) updateFields.description = input.description.trim();
+  if (input.status !== undefined) updateFields.status = input.status;
+
+  const result = await db.collection<TopicDoc>(COLLECTIONS.TOPICS).findOneAndUpdate(
+    { $or: [{ id }, { id: id.toLowerCase() }] },
+    { $set: updateFields },
+    { returnDocument: "after" }
+  );
+
+  return result ? toDomainEntity<Topic>(result) : null;
 }
 
-export function deleteTopic(id: string): boolean {
-  const store = getStore();
-  const index = store.topics.findIndex((t) => t.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return false;
+export async function deleteTopic(id: string): Promise<boolean> {
+  const db = await getMongoDb();
+  const lowerId = id.toLowerCase();
 
-  store.topics.splice(index, 1);
-  updateDerivedCounts(store);
-  saveStore(store);
+  const topic = await db.collection<TopicDoc>(COLLECTIONS.TOPICS).findOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  if (!topic) return false;
+
+  await db.collection<TopicDoc>(COLLECTIONS.TOPICS).deleteOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  // Cascade cleanup
+  await Promise.all([
+    db.collection(COLLECTIONS.QUESTIONS).deleteMany({ topicId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.TESTS).deleteMany({ topicId: { $in: [id, lowerId] } }),
+    db.collection(COLLECTIONS.SUBJECTS).updateOne({ id: topic.subjectId }, { $inc: { totalTopics: -1 } }),
+  ]);
+
   return true;
 }
 
@@ -430,53 +458,73 @@ export interface QuestionFilters {
   difficulty?: QuestionDifficulty;
   status?: QuestionStatus;
   search?: string;
+  limit?: number;
+  skip?: number;
 }
 
-export function getAllQuestions(filters?: QuestionFilters): Question[] {
-  const store = getStore();
-  let list = [...store.questions];
+export async function getAllQuestions(filters?: QuestionFilters): Promise<Question[]> {
+  const db = await getMongoDb();
+  const filter: Record<string, unknown> = {};
 
   if (filters?.examId) {
-    list = list.filter((q) => q.examId.toLowerCase() === filters.examId!.toLowerCase());
+    filter.examId = { $in: [filters.examId, filters.examId.toLowerCase()] };
   }
   if (filters?.subjectId) {
-    list = list.filter((q) => q.subjectId.toLowerCase() === filters.subjectId!.toLowerCase());
+    filter.subjectId = { $in: [filters.subjectId, filters.subjectId.toLowerCase()] };
   }
   if (filters?.topicId) {
-    list = list.filter((q) => q.topicId.toLowerCase() === filters.topicId!.toLowerCase());
+    filter.topicId = { $in: [filters.topicId, filters.topicId.toLowerCase()] };
   }
   if (filters?.difficulty) {
-    list = list.filter((q) => q.difficulty === filters.difficulty);
+    filter.difficulty = filters.difficulty;
   }
   if (filters?.status) {
-    list = list.filter((q) => q.status === filters.status);
+    filter.status = filters.status;
   }
   if (filters?.search) {
-    const term = filters.search.toLowerCase();
-    list = list.filter(
-      (q) =>
-        q.questionText.toLowerCase().includes(term) ||
-        q.explanation.toLowerCase().includes(term)
-    );
+    const term = filters.search.trim();
+    filter.$or = [
+      { questionText: { $regex: term, $options: "i" } },
+      { explanation: { $regex: term, $options: "i" } },
+    ];
   }
 
-  return list;
+  let cursor = db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).find(filter).sort({ createdAt: -1 });
+
+  if (filters?.skip && filters.skip > 0) {
+    cursor = cursor.skip(filters.skip);
+  }
+  if (filters?.limit && filters.limit > 0) {
+    cursor = cursor.limit(filters.limit);
+  }
+
+  const docs = await cursor.toArray();
+  return toDomainEntities<Question>(docs);
 }
 
-export function getQuestionById(id: string): Question | null {
-  const store = getStore();
-  const q = store.questions.find((item) => item.id.toLowerCase() === id.toLowerCase());
-  return q ? { ...q } : null;
+export async function getQuestionById(id: string): Promise<Question | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).findOne({
+    $or: [{ id }, { id: id.toLowerCase() }],
+  });
+  return doc ? toDomainEntity<Question>(doc) : null;
 }
 
-export function getQuestionsByIds(ids: string[]): Question[] {
-  const store = getStore();
-  const set = new Set(ids.map((id) => id.toLowerCase()));
-  return store.questions.filter((q) => set.has(q.id.toLowerCase()));
+export async function getQuestionsByIds(ids: string[]): Promise<Question[]> {
+  if (!ids || ids.length === 0) return [];
+  const db = await getMongoDb();
+  const docs = await db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).find({
+    id: { $in: ids },
+  }).toArray();
+
+  return toDomainEntities<Question>(docs);
 }
 
-export function createQuestion(input: Omit<Question, "id" | "createdAt" | "updatedAt">): Question {
-  const store = getStore();
+export async function createQuestion(
+  input: Omit<Question, "id" | "createdAt" | "updatedAt">
+): Promise<Question> {
+  const db = await getMongoDb();
   const now = new Date().toISOString();
   const id = `q-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
@@ -487,39 +535,63 @@ export function createQuestion(input: Omit<Question, "id" | "createdAt" | "updat
     updatedAt: now,
   };
 
-  store.questions.push(newQuestion);
-  updateDerivedCounts(store);
-  saveStore(store);
+  await db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).insertOne(newQuestion as QuestionDoc);
+
+  // Increment parent topic questionCount
+  if (input.topicId) {
+    await db
+      .collection<TopicDoc>(COLLECTIONS.TOPICS)
+      .updateOne({ id: input.topicId }, { $inc: { questionCount: 1 } });
+  }
+
   return newQuestion;
 }
 
-export function updateQuestion(id: string, input: Partial<Question>): Question | null {
-  const store = getStore();
-  const index = store.questions.findIndex((q) => q.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return null;
+export async function updateQuestion(id: string, input: Partial<Question>): Promise<Question | null> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
 
-  const existing = store.questions[index];
-  const updated: Question = {
-    ...existing,
-    ...input,
-    id: existing.id, // Immutable ID
-    updatedAt: new Date().toISOString(),
-  };
+  const updateData: Partial<QuestionDoc> = { ...input };
+  delete updateData.id;
+  delete updateData.createdAt;
+  updateData.updatedAt = now;
 
-  store.questions[index] = updated;
-  updateDerivedCounts(store);
-  saveStore(store);
-  return updated;
+  const result = await db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).findOneAndUpdate(
+    { $or: [{ id }, { id: id.toLowerCase() }] },
+    { $set: updateData },
+    { returnDocument: "after" }
+  );
+
+  return result ? toDomainEntity<Question>(result) : null;
 }
 
-export function deleteQuestion(id: string): boolean {
-  const store = getStore();
-  const index = store.questions.findIndex((q) => q.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return false;
+export async function deleteQuestion(id: string): Promise<boolean> {
+  const db = await getMongoDb();
+  const lowerId = id.toLowerCase();
 
-  store.questions.splice(index, 1);
-  updateDerivedCounts(store);
-  saveStore(store);
+  const question = await db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).findOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  if (!question) return false;
+
+  await db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).deleteOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  // Decrement parent topic questionCount
+  if (question.topicId) {
+    await db
+      .collection<TopicDoc>(COLLECTIONS.TOPICS)
+      .updateOne({ id: question.topicId }, { $inc: { questionCount: -1 } });
+  }
+
+  // Remove deleted question ID from tests and sync questionCount
+  await db.collection<TestDoc>(COLLECTIONS.TESTS).updateMany(
+    { questionIds: { $in: [id, lowerId] } },
+    { $pull: { questionIds: { $in: [id, lowerId] } } as never }
+  );
+
   return true;
 }
 
@@ -532,47 +604,65 @@ export interface TestFilters {
   subjectId?: string;
   topicId?: string;
   status?: TestStatus;
+  difficulty?: TestDifficulty;
   search?: string;
+  limit?: number;
+  skip?: number;
 }
 
-export function getAllTests(filters?: TestFilters): Test[] {
-  const store = getStore();
-  let list = [...store.tests];
+export async function getAllTests(filters?: TestFilters): Promise<Test[]> {
+  const db = await getMongoDb();
+  const filter: Record<string, unknown> = {};
 
   if (filters?.examId) {
-    list = list.filter((t) => t.examId.toLowerCase() === filters.examId!.toLowerCase());
+    filter.examId = { $in: [filters.examId, filters.examId.toLowerCase()] };
   }
   if (filters?.subjectId) {
-    list = list.filter((t) => t.subjectId.toLowerCase() === filters.subjectId!.toLowerCase());
+    filter.subjectId = { $in: [filters.subjectId, filters.subjectId.toLowerCase()] };
   }
   if (filters?.topicId) {
-    list = list.filter(
-      (t) => t.topicId && t.topicId.toLowerCase() === filters.topicId!.toLowerCase()
-    );
+    filter.topicId = { $in: [filters.topicId, filters.topicId.toLowerCase()] };
   }
   if (filters?.status) {
-    list = list.filter((t) => t.status === filters.status);
+    filter.status = filters.status;
+  }
+  if (filters?.difficulty) {
+    filter.difficulty = filters.difficulty;
   }
   if (filters?.search) {
-    const term = filters.search.toLowerCase();
-    list = list.filter(
-      (t) =>
-        t.title.toLowerCase().includes(term) ||
-        t.description.toLowerCase().includes(term)
-    );
+    const term = filters.search.trim();
+    filter.$or = [
+      { title: { $regex: term, $options: "i" } },
+      { description: { $regex: term, $options: "i" } },
+    ];
   }
 
-  return list;
+  let cursor = db.collection<TestDoc>(COLLECTIONS.TESTS).find(filter).sort({ createdAt: -1 });
+
+  if (filters?.skip && filters.skip > 0) {
+    cursor = cursor.skip(filters.skip);
+  }
+  if (filters?.limit && filters.limit > 0) {
+    cursor = cursor.limit(filters.limit);
+  }
+
+  const docs = await cursor.toArray();
+  return toDomainEntities<Test>(docs);
 }
 
-export function getTestById(id: string): Test | null {
-  const store = getStore();
-  const test = store.tests.find((t) => t.id.toLowerCase() === id.toLowerCase());
-  return test ? { ...test } : null;
+export async function getTestById(id: string): Promise<Test | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<TestDoc>(COLLECTIONS.TESTS).findOne({
+    $or: [{ id }, { id: id.toLowerCase() }],
+  });
+  return doc ? toDomainEntity<Test>(doc) : null;
 }
 
-export function createTest(input: Omit<Test, "id" | "questionCount" | "createdAt" | "updatedAt">): Test {
-  const store = getStore();
+export async function createTest(
+  input: Omit<Test, "id" | "questionCount" | "createdAt" | "updatedAt">
+): Promise<Test> {
+  const db = await getMongoDb();
   const now = new Date().toISOString();
   const id = `test-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
@@ -584,51 +674,424 @@ export function createTest(input: Omit<Test, "id" | "questionCount" | "createdAt
     updatedAt: now,
   };
 
-  store.tests.push(newTest);
-  updateDerivedCounts(store);
-  saveStore(store);
+  await db.collection<TestDoc>(COLLECTIONS.TESTS).insertOne(newTest as TestDoc);
   return newTest;
 }
 
-export function updateTest(id: string, input: Partial<Test>): Test | null {
-  const store = getStore();
-  const index = store.tests.findIndex((t) => t.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return null;
+export async function updateTest(id: string, input: Partial<Test>): Promise<Test | null> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
 
-  const existing = store.tests[index];
-  const questionIds = input.questionIds !== undefined ? input.questionIds : existing.questionIds;
+  const updateData: Partial<TestDoc> = { ...input };
+  delete updateData.id;
+  delete updateData.createdAt;
+  updateData.updatedAt = now;
 
-  const updated: Test = {
-    ...existing,
-    ...input,
-    id: existing.id,
-    questionIds,
-    questionCount: questionIds.length,
-    updatedAt: new Date().toISOString(),
+  if (input.questionIds !== undefined) {
+    updateData.questionCount = input.questionIds.length;
+  }
+
+  const result = await db.collection<TestDoc>(COLLECTIONS.TESTS).findOneAndUpdate(
+    { $or: [{ id }, { id: id.toLowerCase() }] },
+    { $set: updateData },
+    { returnDocument: "after" }
+  );
+
+  return result ? toDomainEntity<Test>(result) : null;
+}
+
+export async function togglePublishTest(id: string): Promise<Test | null> {
+  const current = await getTestById(id);
+  if (!current) return null;
+
+  const nextStatus: TestStatus = current.status === "published" ? "draft" : "published";
+  return updateTest(id, { status: nextStatus });
+}
+
+export async function deleteTest(id: string): Promise<boolean> {
+  const db = await getMongoDb();
+  const lowerId = id.toLowerCase();
+
+  const result = await db.collection<TestDoc>(COLLECTIONS.TESTS).deleteOne({
+    $or: [{ id }, { id: lowerId }],
+  });
+
+  return result.deletedCount > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Bulk Quiz Importer
+// ---------------------------------------------------------------------------
+
+export interface ImportQuizData {
+  examId: string;
+  subjectId: string;
+  topicId: string;
+  title: string;
+  description: string;
+  durationMinutes: number;
+  difficulty: TestDifficulty;
+  status: TestStatus;
+  questions: Array<{
+    questionText: string;
+    options: QuestionOption[];
+    correctAnswer: string;
+    explanation: string;
+    difficulty: QuestionDifficulty;
+  }>;
+}
+
+export async function importQuizWithQuestions(input: ImportQuizData): Promise<{
+  test: Test;
+  questions: Question[];
+}> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+
+  // 1. Prepare questions
+  const createdQuestions: Question[] = input.questions.map((q, idx) => {
+    const qId = `q-${Date.now()}-${idx + 1}-${Math.random().toString(36).substring(2, 6)}`;
+    return {
+      id: qId,
+      questionText: q.questionText,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      examId: input.examId,
+      subjectId: input.subjectId,
+      topicId: input.topicId,
+      difficulty: q.difficulty,
+      status: "published" as QuestionStatus,
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
+
+  // 2. Prepare test
+  const testId = `test-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const createdTest: Test = {
+    id: testId,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    examId: input.examId,
+    subjectId: input.subjectId,
+    topicId: input.topicId,
+    questionIds: createdQuestions.map((q) => q.id),
+    durationMinutes: input.durationMinutes,
+    questionCount: createdQuestions.length,
+    difficulty: input.difficulty,
+    status: input.status,
+    createdAt: now,
+    updatedAt: now,
   };
 
-  store.tests[index] = updated;
-  saveStore(store);
-  return updated;
+  // 3. Batch insert into MongoDB
+  await Promise.all([
+    db.collection<QuestionDoc>(COLLECTIONS.QUESTIONS).insertMany(createdQuestions as QuestionDoc[]),
+    db.collection<TestDoc>(COLLECTIONS.TESTS).insertOne(createdTest as TestDoc),
+    db.collection<TopicDoc>(COLLECTIONS.TOPICS).updateOne(
+      { id: input.topicId },
+      { $inc: { questionCount: createdQuestions.length } }
+    ),
+  ]);
+
+  return {
+    test: createdTest,
+    questions: createdQuestions,
+  };
 }
 
-export function togglePublishTest(id: string): Test | null {
-  const store = getStore();
-  const test = store.tests.find((t) => t.id.toLowerCase() === id.toLowerCase());
-  if (!test) return null;
+// ---------------------------------------------------------------------------
+// Section Operations
+// ---------------------------------------------------------------------------
 
-  test.status = test.status === "published" ? "draft" : "published";
-  test.updatedAt = new Date().toISOString();
-  saveStore(store);
-  return { ...test };
+export async function getAllSections(): Promise<Section[]> {
+  const db = await getMongoDb();
+  const docs = await db
+    .collection<SectionDoc>(COLLECTIONS.SECTIONS)
+    .find()
+    .sort({ order: 1, title: 1 })
+    .toArray();
+  return toDomainEntities<Section>(docs);
 }
 
-export function deleteTest(id: string): boolean {
-  const store = getStore();
-  const index = store.tests.findIndex((t) => t.id.toLowerCase() === id.toLowerCase());
-  if (index === -1) return false;
+export async function getSectionById(id: string): Promise<Section | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<SectionDoc>(COLLECTIONS.SECTIONS).findOne({ id });
+  return doc ? toDomainEntity<Section>(doc) : null;
+}
 
-  store.tests.splice(index, 1);
-  saveStore(store);
-  return true;
+export async function getSectionsBySubject(subjectId: string): Promise<Section[]> {
+  if (!subjectId) return [];
+  const db = await getMongoDb();
+  const docs = await db
+    .collection<SectionDoc>(COLLECTIONS.SECTIONS)
+    .find({ subjectId })
+    .sort({ order: 1, title: 1 })
+    .toArray();
+  return toDomainEntities<Section>(docs);
+}
+
+export async function getSectionsByExam(examId: string): Promise<Section[]> {
+  if (!examId) return [];
+  const db = await getMongoDb();
+  const docs = await db
+    .collection<SectionDoc>(COLLECTIONS.SECTIONS)
+    .find({ examId })
+    .sort({ order: 1, title: 1 })
+    .toArray();
+  return toDomainEntities<Section>(docs);
+}
+
+export async function createSection(input: {
+  title: string;
+  description: string;
+  examId: string;
+  subjectId: string;
+  order?: number;
+  status?: ContentStatus;
+}): Promise<Section> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+  const newSection: Section = {
+    id: `sec-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    examId: input.examId,
+    subjectId: input.subjectId,
+    order: input.order ?? 1,
+    status: input.status || "active",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.collection<SectionDoc>(COLLECTIONS.SECTIONS).insertOne(newSection as SectionDoc);
+  return newSection;
+}
+
+export async function updateSection(
+  id: string,
+  input: Partial<Omit<Section, "id" | "createdAt" | "updatedAt">>
+): Promise<Section | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+
+  const result = await db.collection<SectionDoc>(COLLECTIONS.SECTIONS).findOneAndUpdate(
+    { id },
+    {
+      $set: {
+        ...input,
+        updatedAt: now,
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  return result ? toDomainEntity<Section>(result) : null;
+}
+
+export async function countDependentLessons(sectionId: string): Promise<number> {
+  if (!sectionId) return 0;
+  const db = await getMongoDb();
+  return db.collection(COLLECTIONS.LESSONS).countDocuments({ sectionId });
+}
+
+export async function deleteSection(id: string): Promise<boolean> {
+  if (!id) return false;
+  const db = await getMongoDb();
+
+  // Referential integrity check
+  const dependentLessons = await countDependentLessons(id);
+  if (dependentLessons > 0) {
+    throw new Error(
+      `Cannot delete section: ${dependentLessons} lesson(s) are associated with it. Please reassign or delete dependent lessons first.`
+    );
+  }
+
+  const result = await db.collection<SectionDoc>(COLLECTIONS.SECTIONS).deleteOne({ id });
+  return result.deletedCount > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Lesson Operations
+// ---------------------------------------------------------------------------
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export async function getAllLessons(): Promise<Lesson[]> {
+  const db = await getMongoDb();
+  const docs = await db
+    .collection<LessonDoc>(COLLECTIONS.LESSONS)
+    .find()
+    .sort({ updatedAt: -1 })
+    .toArray();
+  return toDomainEntities<Lesson>(docs);
+}
+
+export async function getPublishedLessons(filter?: {
+  examId?: string;
+  subjectId?: string;
+  topicId?: string;
+}): Promise<Lesson[]> {
+  const db = await getMongoDb();
+  const query: Record<string, unknown> = { status: "published" };
+  if (filter?.examId) query.examId = filter.examId;
+  if (filter?.subjectId) query.subjectId = filter.subjectId;
+  if (filter?.topicId) query.topicId = filter.topicId;
+
+  const docs = await db
+    .collection<LessonDoc>(COLLECTIONS.LESSONS)
+    .find(query)
+    .sort({ order: 1, title: 1 })
+    .toArray();
+  return toDomainEntities<Lesson>(docs);
+}
+
+export async function getLessonById(id: string): Promise<Lesson | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<LessonDoc>(COLLECTIONS.LESSONS).findOne({ id });
+  return doc ? toDomainEntity<Lesson>(doc) : null;
+}
+
+export async function getLessonsByTopic(topicId: string): Promise<Lesson[]> {
+  if (!topicId) return [];
+  const db = await getMongoDb();
+  const docs = await db
+    .collection<LessonDoc>(COLLECTIONS.LESSONS)
+    .find({ topicId })
+    .sort({ order: 1, title: 1 })
+    .toArray();
+  return toDomainEntities<Lesson>(docs);
+}
+
+export async function createLesson(input: {
+  title: string;
+  slug?: string;
+  description: string;
+  content: string;
+  examId: string;
+  subjectId: string;
+  topicId: string;
+  sectionId?: string;
+  learningObjectives?: string[];
+  order?: number;
+  readTimeMinutes?: number;
+  status?: LessonStatus;
+}): Promise<Lesson> {
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+  const calculatedReadTime =
+    input.readTimeMinutes ||
+    Math.max(1, Math.ceil(input.content.trim().split(/\s+/).length / 200));
+
+  const newLesson: Lesson = {
+    id: `les-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    title: input.title.trim(),
+    slug: input.slug?.trim() || slugify(input.title),
+    description: input.description.trim(),
+    content: input.content,
+    examId: input.examId,
+    subjectId: input.subjectId,
+    topicId: input.topicId,
+    sectionId: input.sectionId,
+    learningObjectives: input.learningObjectives || [],
+    order: input.order ?? 1,
+    readTimeMinutes: calculatedReadTime,
+    status: input.status || "draft",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.collection<LessonDoc>(COLLECTIONS.LESSONS).insertOne(newLesson as LessonDoc);
+  return newLesson;
+}
+
+export async function updateLesson(
+  id: string,
+  input: Partial<Omit<Lesson, "id" | "createdAt" | "updatedAt">>
+): Promise<Lesson | null> {
+  if (!id) return null;
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+
+  const updateFields: Record<string, unknown> = {
+    ...input,
+    updatedAt: now,
+  };
+
+  if (input.content && !input.readTimeMinutes) {
+    updateFields.readTimeMinutes = Math.max(1, Math.ceil(input.content.trim().split(/\s+/).length / 200));
+  }
+
+  const result = await db.collection<LessonDoc>(COLLECTIONS.LESSONS).findOneAndUpdate(
+    { id },
+    { $set: updateFields },
+    { returnDocument: "after" }
+  );
+
+  return result ? toDomainEntity<Lesson>(result) : null;
+}
+
+export async function deleteLesson(id: string): Promise<boolean> {
+  if (!id) return false;
+  const db = await getMongoDb();
+  const result = await db.collection<LessonDoc>(COLLECTIONS.LESSONS).deleteOne({ id });
+  return result.deletedCount > 0;
+}
+
+export async function toggleLessonPublish(id: string): Promise<Lesson | null> {
+  if (!id) return null;
+  const current = await getLessonById(id);
+  if (!current) return null;
+
+  const nextStatus: LessonStatus = current.status === "published" ? "draft" : "published";
+  return updateLesson(id, { status: nextStatus });
+}
+
+// ---------------------------------------------------------------------------
+// Mock Tests Operations (Reuses Test entity)
+// ---------------------------------------------------------------------------
+
+export async function getAllMockTests(): Promise<Test[]> {
+  const db = await getMongoDb();
+  const docs = await db
+    .collection<TestDoc>(COLLECTIONS.TESTS)
+    .find({
+      $or: [
+        { testType: "mock" },
+        { title: { $regex: /mock/i } },
+      ],
+    })
+    .sort({ createdAt: -1 })
+    .toArray();
+  return toDomainEntities<Test>(docs);
+}
+
+export async function getPublishedMockTests(examId?: string): Promise<Test[]> {
+  const db = await getMongoDb();
+  const query: Record<string, unknown> = {
+    status: "published",
+    $or: [
+      { testType: "mock" },
+      { title: { $regex: /mock/i } },
+    ],
+  };
+  if (examId) query.examId = examId;
+
+  const docs = await db
+    .collection<TestDoc>(COLLECTIONS.TESTS)
+    .find(query)
+    .sort({ createdAt: -1 })
+    .toArray();
+  return toDomainEntities<Test>(docs);
 }

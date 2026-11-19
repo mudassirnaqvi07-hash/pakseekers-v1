@@ -4,9 +4,9 @@
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { UserPlus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui";
-import { getCurrentUser, isSafeCallbackUrl } from "@/server/auth/session";
+import { BrandLogo } from "@/components/shared";
+import { getCurrentUser, isSafeStudentCallbackUrl } from "@/server/auth/session";
 import { StudentRegisterForm } from "@/features/student/components/student-register-form";
 
 export const metadata: Metadata = {
@@ -22,19 +22,21 @@ export default async function StudentRegisterPage({
   const { callbackUrl } = await searchParams;
   const user = await getCurrentUser();
 
-  if (user && user.role === "student") {
-    if (isSafeCallbackUrl(callbackUrl)) {
-      redirect(callbackUrl!.trim());
+  if (user) {
+    if (user.role === "student") {
+      if (isSafeStudentCallbackUrl(callbackUrl)) {
+        redirect(callbackUrl!.trim());
+      }
+      redirect("/student/dashboard");
+    } else if (user.role === "admin") {
+      redirect("/admin/dashboard");
     }
-    redirect("/student/dashboard");
   }
 
   return (
     <div className="w-full max-w-lg my-auto py-8">
-      <div className="text-center mb-6">
-        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary mx-auto flex items-center justify-center mb-3">
-          <UserPlus className="w-6 h-6" />
-        </div>
+      <div className="text-center mb-6 flex flex-col items-center">
+        <BrandLogo variant="full" size="md" href="/" className="mb-3" priority />
         <h1 className="text-2xl font-bold text-text-primary tracking-tight">
           Create Free Student Account
         </h1>

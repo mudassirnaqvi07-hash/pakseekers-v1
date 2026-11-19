@@ -6,10 +6,10 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { TopicForm } from "@/features/admin/components/topic-form";
 import {
-  getTopicById,
-  getAllExams,
-  getAllSubjects,
-} from "@/server/repositories/content-repository";
+  getAdminTopicById,
+  getAdminAllExams,
+  getAdminAllSubjects,
+} from "@/server/services/content-service";
 import { updateTopicAction } from "@/server/actions/content-actions";
 
 interface EditTopicPageProps {
@@ -20,7 +20,7 @@ export async function generateMetadata({
   params,
 }: EditTopicPageProps): Promise<Metadata> {
   const { id } = await params;
-  const topic = getTopicById(id);
+  const topic = await getAdminTopicById(id);
   return {
     title: topic ? `Edit ${topic.title} | PakSeekers Admin` : "Topic Not Found",
   };
@@ -28,9 +28,11 @@ export async function generateMetadata({
 
 export default async function EditTopicPage({ params }: EditTopicPageProps) {
   const { id } = await params;
-  const topic = getTopicById(id);
-  const exams = getAllExams();
-  const subjects = getAllSubjects();
+  const [topic, exams, subjects] = await Promise.all([
+    getAdminTopicById(id),
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+  ]);
 
   if (!topic) {
     notFound();

@@ -227,6 +227,27 @@
       "role": "student",
       "createdAt": "2026-09-23T14:17:33.214Z",
       "expiresAt": "2026-09-30T14:17:33.214Z"
+    },
+    {
+      "token": "60eb29b0a700874d8a68a19e90d887a71850c6d8129ff8ecded19f18252269a7",
+      "userId": "student-seed-01",
+      "role": "student",
+      "createdAt": "2026-10-13T05:30:50.192Z",
+      "expiresAt": "2026-10-20T05:30:50.192Z"
+    },
+    {
+      "token": "deb0fd7cc0eb0d68f26aa3ad80b62267268998cd3d2fd25e2a731d69e30c3313",
+      "userId": "admin-seed-01",
+      "role": "admin",
+      "createdAt": "2026-10-13T05:39:55.667Z",
+      "expiresAt": "2026-10-20T05:39:55.667Z"
+    },
+    {
+      "token": "5b667c8dc5618baa2f002f632cf41ad433045490cd73f1352d710ced4ca70fc5",
+      "userId": "admin-seed-01",
+      "role": "admin",
+      "createdAt": "2026-10-13T05:42:04.568Z",
+      "expiresAt": "2026-10-20T05:42:04.568Z"
     }
   ],
   "attempts": [

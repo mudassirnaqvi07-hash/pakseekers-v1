@@ -39,21 +39,21 @@ export interface ButtonProps
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-primary text-white hover:bg-primary-hover focus-visible:ring-primary/40 border-transparent",
+    "bg-primary text-white hover:bg-primary-hover focus-visible:ring-primary/40 border-transparent shadow-xs",
   secondary:
-    "bg-secondary text-white hover:bg-secondary-hover focus-visible:ring-secondary/40 border-transparent",
+    "bg-secondary text-white hover:bg-secondary-hover focus-visible:ring-secondary/40 border-transparent shadow-xs",
   danger:
-    "bg-error text-white hover:bg-red-700 focus-visible:ring-error/40 border-transparent",
+    "bg-error text-white hover:bg-red-700 focus-visible:ring-error/40 border-transparent shadow-xs",
   outline:
-    "bg-transparent text-primary border-border hover:bg-background focus-visible:ring-primary/40",
+    "bg-transparent text-primary border-border hover:bg-background hover:border-primary/40 focus-visible:ring-primary/40",
   ghost:
     "bg-transparent text-text-primary border-transparent hover:bg-background focus-visible:ring-primary/40",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-sm gap-1.5",
-  md: "h-10 px-4 text-sm gap-2",
-  lg: "h-11 px-6 text-base gap-2",
+  sm: "min-h-[38px] sm:min-h-[32px] h-auto sm:h-8 px-3 py-1.5 sm:py-0 text-xs sm:text-sm gap-1.5",
+  md: "min-h-[44px] sm:min-h-[40px] h-auto sm:h-10 px-4 py-2 sm:py-0 text-sm gap-2",
+  lg: "min-h-[48px] sm:min-h-[44px] h-auto sm:h-11 px-6 py-2.5 sm:py-0 text-sm sm:text-base gap-2.5",
 };
 
 // ---------------------------------------------------------------------------
@@ -71,22 +71,38 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       className,
       disabled,
+      style,
       ...props
     },
     ref
   ) {
     const isDisabled = disabled || isLoading;
+    const isMultiline =
+      Boolean(className?.includes("whitespace-normal")) ||
+      style?.whiteSpace === "normal";
+    const resolvedWhiteSpace = isMultiline ? "normal" : (style?.whiteSpace ?? "nowrap");
 
     return (
       <button
         ref={ref}
         disabled={isDisabled}
         aria-disabled={isDisabled}
+        style={{
+          display: "inline-flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          whiteSpace: resolvedWhiteSpace,
+          ...style,
+        }}
         className={cn(
-          // Base
-          "inline-flex items-center justify-center font-medium rounded-md border",
-          "transition-colors duration-150",
+          // Base: flex-row, items-center, responsive touch targets
+          "inline-flex flex-row items-center justify-center font-medium rounded-md border max-w-full",
+          !isMultiline && "whitespace-nowrap select-none",
+          "transition-colors duration-150 leading-snug sm:leading-none",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+          // SVG containment: ensures icons inside buttons are inline-block flex items that never wrap
+          "[&_svg]:inline-block [&_svg]:shrink-0 [&_svg]:align-middle [&_svg]:pointer-events-none",
           // Disabled
           "disabled:opacity-50 disabled:cursor-not-allowed",
           // Variant
@@ -97,18 +113,50 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {...props}
       >
-        {isLoading ? (
-          <>
-            <Spinner size={size} />
-            {children && <span>{children}</span>}
-          </>
-        ) : (
-          <>
-            {leftIcon && <span className="shrink-0">{leftIcon}</span>}
-            {children && <span>{children}</span>}
-            {rightIcon && <span className="shrink-0">{rightIcon}</span>}
-          </>
-        )}
+        <span
+          className={cn(
+            "inline-flex flex-row items-center justify-center gap-2 max-w-full min-w-0",
+            !isMultiline && "leading-none"
+          )}
+          style={{
+            display: "inline-flex",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            whiteSpace: resolvedWhiteSpace,
+          }}
+        >
+          {isLoading ? (
+            <>
+              <Spinner size={size} />
+              {children && <span className="truncate">{children}</span>}
+            </>
+          ) : (
+            <>
+              {leftIcon && (
+                <span className="inline-flex shrink-0 items-center justify-center">
+                  {leftIcon}
+                </span>
+              )}
+              {children && (
+                <span
+                  className={cn(
+                    "inline-flex flex-row items-center justify-center gap-1.5 min-w-0",
+                    !isMultiline && "whitespace-nowrap"
+                  )}
+                  style={{ whiteSpace: resolvedWhiteSpace }}
+                >
+                  {children}
+                </span>
+              )}
+              {rightIcon && (
+                <span className="inline-flex shrink-0 items-center justify-center">
+                  {rightIcon}
+                </span>
+              )}
+            </>
+          )}
+        </span>
       </button>
     );
   }

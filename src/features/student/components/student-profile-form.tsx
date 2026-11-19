@@ -9,10 +9,10 @@ import { useRouter } from "next/navigation";
 import { Save, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button, Input, Select } from "@/components/ui";
 import { updateStudentProfileAction } from "@/server/actions/auth-actions";
-import type { User as UserType } from "@/types";
+import type { SafeUser, User as UserType } from "@/types";
 
 interface StudentProfileFormProps {
-  user: UserType;
+  user: SafeUser | UserType;
 }
 
 export function StudentProfileForm({ user }: StudentProfileFormProps) {
@@ -171,9 +171,14 @@ export function StudentProfileForm({ user }: StudentProfileFormProps) {
       </div>
 
       <div className="pt-4 border-t border-border flex justify-end">
-        <Button type="submit" size="md" disabled={isPending}>
-          <Save className="w-4 h-4 mr-2" />
-          {isPending ? "Saving..." : "Save Profile Changes"}
+        <Button
+          type="submit"
+          size="md"
+          isLoading={isPending}
+          className="w-full sm:w-auto font-semibold"
+          leftIcon={<Save className="w-4 h-4" />}
+        >
+          Save Profile Changes
         </Button>
       </div>
     </form>

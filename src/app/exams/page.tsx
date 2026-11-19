@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAllExams } from "@/features/exams/services/content-service";
+import { getAllExams } from "@/server/services/content-service";
 import { ExamCard } from "@/features/exams/components/exam-card";
 import { PageHeader } from "@/components/shared";
 import { EmptyState } from "@/components/shared";
@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   title: "Exams Catalog | PakSeekers",
   description: "Browse standardized university entrance exams and academic test preparation tracks in Pakistan.",
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function ExamsPage() {
   const exams = await getAllExams();

@@ -5,12 +5,12 @@ import { ArrowLeft, Clock, FileEdit, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Badge, Button } from "@/components/ui";
 import {
-  getTestById,
-  getQuestionsByIds,
-  getExamById,
-  getSubjectById,
-  getTopicById,
-} from "@/server/repositories/content-repository";
+  getAdminTestById,
+  getAdminQuestionsByIds,
+  getAdminExamById,
+  getAdminSubjectById,
+  getAdminTopicById,
+} from "@/server/services/content-service";
 import { PublishToggleButton } from "@/features/admin/components/publish-toggle-button";
 
 interface TestPreviewPageProps {
@@ -21,7 +21,7 @@ export async function generateMetadata({
   params,
 }: TestPreviewPageProps): Promise<Metadata> {
   const { id } = await params;
-  const test = getTestById(id);
+  const test = await getAdminTestById(id);
   return {
     title: test ? `Preview: ${test.title} | PakSeekers Admin` : "Test Not Found",
   };
@@ -31,16 +31,18 @@ export default async function TestPreviewPage({
   params,
 }: TestPreviewPageProps) {
   const { id } = await params;
-  const test = getTestById(id);
+  const test = await getAdminTestById(id);
 
   if (!test) {
     notFound();
   }
 
-  const exam = getExamById(test.examId);
-  const subject = getSubjectById(test.subjectId);
-  const topic = test.topicId ? getTopicById(test.topicId) : null;
-  const questions = getQuestionsByIds(test.questionIds);
+  const [exam, subject, topic, questions] = await Promise.all([
+    getAdminExamById(test.examId),
+    getAdminSubjectById(test.subjectId),
+    test.topicId ? getAdminTopicById(test.topicId) : Promise.resolve(null),
+    getAdminQuestionsByIds(test.questionIds),
+  ]);
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto">

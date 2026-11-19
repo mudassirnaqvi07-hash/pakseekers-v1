@@ -6,12 +6,12 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { TestBuilderForm } from "@/features/admin/components/test-builder-form";
 import {
-  getTestById,
-  getAllExams,
-  getAllSubjects,
-  getAllTopics,
-  getAllQuestions,
-} from "@/server/repositories/content-repository";
+  getAdminTestById,
+  getAdminAllExams,
+  getAdminAllSubjects,
+  getAdminAllTopics,
+  getAdminAllQuestions,
+} from "@/server/services/content-service";
 import { updateTestAction } from "@/server/actions/content-actions";
 
 interface EditTestPageProps {
@@ -22,7 +22,7 @@ export async function generateMetadata({
   params,
 }: EditTestPageProps): Promise<Metadata> {
   const { id } = await params;
-  const test = getTestById(id);
+  const test = await getAdminTestById(id);
   return {
     title: test ? `Edit ${test.title} | PakSeekers Admin` : "Test Not Found",
   };
@@ -30,11 +30,13 @@ export async function generateMetadata({
 
 export default async function EditTestPage({ params }: EditTestPageProps) {
   const { id } = await params;
-  const test = getTestById(id);
-  const exams = getAllExams();
-  const subjects = getAllSubjects();
-  const topics = getAllTopics();
-  const allQuestions = getAllQuestions();
+  const [test, exams, subjects, topics, allQuestions] = await Promise.all([
+    getAdminTestById(id),
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+    getAdminAllTopics(),
+    getAdminAllQuestions(),
+  ]);
 
   if (!test) {
     notFound();

@@ -14,6 +14,7 @@ interface QuizProgressProps {
   answers: Record<string, string>;
   questionIds: string[];
   onSelectIndex: (index: number) => void;
+  flaggedIds?: string[];
 }
 
 export function QuizProgress({
@@ -23,20 +24,26 @@ export function QuizProgress({
   answers,
   questionIds,
   onSelectIndex,
+  flaggedIds = [],
 }: QuizProgressProps) {
   const percentage =
     totalQuestions > 0 ? Math.round(((currentIndex + 1) / totalQuestions) * 100) : 0;
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 sm:p-5 shadow-xs flex flex-col gap-4">
+    <div className="bg-surface border border-border rounded-xl p-3.5 sm:p-5 shadow-xs flex flex-col gap-3 sm:gap-4 min-w-0">
       {/* Top info bar */}
-      <div className="flex items-center justify-between text-xs sm:text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs sm:text-sm">
         <span className="font-semibold text-text-primary">
           Question {currentIndex + 1} of {totalQuestions}
         </span>
-        <span className="text-text-secondary">
+        <span className="text-text-secondary text-[11px] sm:text-xs">
           <strong className="font-semibold text-primary">{answeredCount}</strong> of{" "}
           {totalQuestions} answered
+          {flaggedIds.length > 0 && (
+            <span className="ml-1.5 text-amber-600 font-medium">
+              ({flaggedIds.length} flagged)
+            </span>
+          )}
         </span>
       </div>
 
@@ -57,22 +64,30 @@ export function QuizProgress({
         {questionIds.map((qId, idx) => {
           const isCurrent = idx === currentIndex;
           const isAnswered = Boolean(answers[qId]);
+          const isFlagged = flaggedIds.includes(qId);
 
           return (
             <button
               key={qId}
               type="button"
               onClick={() => onSelectIndex(idx)}
-              aria-label={`Jump to question ${idx + 1}`}
+              aria-label={`Jump to question ${idx + 1}${isFlagged ? " (Flagged)" : ""}${isAnswered ? " (Answered)" : ""}`}
+              aria-current={isCurrent ? "step" : undefined}
               className={cn(
-                "w-8 h-8 rounded-lg text-xs font-semibold shrink-0 transition-all flex items-center justify-center border",
+                "relative min-w-[34px] min-h-[34px] w-9 h-9 rounded-lg text-xs font-semibold shrink-0 transition-all flex items-center justify-center border cursor-pointer",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                isCurrent && "border-primary bg-primary text-white shadow-xs",
+                isCurrent && "border-primary bg-primary text-white shadow-xs font-bold",
                 !isCurrent && isAnswered && "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20",
                 !isCurrent && !isAnswered && "border-border bg-background text-text-secondary hover:bg-slate-200/60"
               )}
             >
               {idx + 1}
+              {isFlagged && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border border-white"
+                />
+              )}
             </button>
           );
         })}

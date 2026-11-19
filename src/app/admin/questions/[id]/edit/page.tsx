@@ -6,11 +6,11 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { QuestionForm } from "@/features/admin/components/question-form";
 import {
-  getQuestionById,
-  getAllExams,
-  getAllSubjects,
-  getAllTopics,
-} from "@/server/repositories/content-repository";
+  getAdminQuestionById,
+  getAdminAllExams,
+  getAdminAllSubjects,
+  getAdminAllTopics,
+} from "@/server/services/content-service";
 import { updateQuestionAction } from "@/server/actions/content-actions";
 
 interface EditQuestionPageProps {
@@ -21,7 +21,7 @@ export async function generateMetadata({
   params,
 }: EditQuestionPageProps): Promise<Metadata> {
   const { id } = await params;
-  const question = getQuestionById(id);
+  const question = await getAdminQuestionById(id);
   return {
     title: question ? "Edit Question | PakSeekers Admin" : "Question Not Found",
   };
@@ -31,10 +31,12 @@ export default async function EditQuestionPage({
   params,
 }: EditQuestionPageProps) {
   const { id } = await params;
-  const question = getQuestionById(id);
-  const exams = getAllExams();
-  const subjects = getAllSubjects();
-  const topics = getAllTopics();
+  const [question, exams, subjects, topics] = await Promise.all([
+    getAdminQuestionById(id),
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+    getAdminAllTopics(),
+  ]);
 
   if (!question) {
     notFound();

@@ -15,7 +15,7 @@ interface ExamCardProps {
 
 export function ExamCard({ exam }: ExamCardProps) {
   return (
-    <div className="bg-surface border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+    <div className="bg-surface border border-border rounded-lg p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group min-w-0">
       <div>
         <div className="flex items-center justify-between gap-3 mb-3">
           <span className="inline-flex items-center px-2.5 py-1 rounded bg-primary/10 text-primary font-bold text-xs tracking-wide uppercase">
@@ -26,16 +26,16 @@ export function ExamCard({ exam }: ExamCardProps) {
           </Badge>
         </div>
 
-        <h3 className="text-xl font-bold text-text-primary group-hover:text-primary transition-colors">
+        <h3 className="text-lg sm:text-xl font-bold text-text-primary group-hover:text-primary transition-colors">
           {exam.title}
         </h3>
 
-        <p className="text-sm text-text-secondary mt-2 line-clamp-3 leading-relaxed">
+        <p className="text-xs sm:text-sm text-text-secondary mt-2 line-clamp-3 leading-relaxed">
           {exam.description}
         </p>
       </div>
 
-      <div className="pt-6 mt-6 border-t border-border flex items-center justify-between">
+      <div className="pt-5 mt-5 sm:pt-6 sm:mt-6 border-t border-border flex flex-col xs:flex-row xs:items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 text-xs text-text-secondary">
           <Layers className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
           <span>
@@ -46,10 +46,10 @@ export function ExamCard({ exam }: ExamCardProps) {
 
         <Link
           href={`/exams/${exam.id}`}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary-hover group-hover:translate-x-0.5 transition-all"
+          className="inline-flex flex-row items-center gap-1.5 text-xs sm:text-sm font-semibold text-primary hover:text-primary-hover whitespace-nowrap shrink-0 group-hover:translate-x-0.5 transition-all"
         >
           <span>Explore Subjects</span>
-          <ArrowRight className="w-4 h-4" aria-hidden="true" />
+          <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />
         </Link>
       </div>
     </div>

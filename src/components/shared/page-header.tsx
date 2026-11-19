@@ -42,21 +42,21 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 pb-5 border-b border-border mb-6",
+        "flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border mb-6",
         className
       )}
     >
       <div className="flex flex-col gap-1 min-w-0">
-        <h1 className="text-xl font-semibold text-text-primary tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-semibold text-text-primary tracking-tight">
           {title}
         </h1>
         {description && (
-          <p className="text-sm text-text-secondary">{description}</p>
+          <p className="text-xs sm:text-sm text-text-secondary leading-relaxed">{description}</p>
         )}
       </div>
 
       {actions && (
-        <div className="flex items-center gap-2 shrink-0">{actions}</div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">{actions}</div>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { ExamForm } from "@/features/admin/components/exam-form";
-import { getExamById } from "@/server/repositories/content-repository";
+import { getAdminExamById } from "@/server/services/content-service";
 import { updateExamAction } from "@/server/actions/content-actions";
 
 interface EditExamPageProps {
@@ -16,7 +16,7 @@ export async function generateMetadata({
   params,
 }: EditExamPageProps): Promise<Metadata> {
   const { id } = await params;
-  const exam = getExamById(id);
+  const exam = await getAdminExamById(id);
   return {
     title: exam ? `Edit ${exam.code} | PakSeekers Admin` : "Exam Not Found",
   };
@@ -24,7 +24,7 @@ export async function generateMetadata({
 
 export default async function EditExamPage({ params }: EditExamPageProps) {
   const { id } = await params;
-  const exam = getExamById(id);
+  const exam = await getAdminExamById(id);
 
   if (!exam) {
     notFound();

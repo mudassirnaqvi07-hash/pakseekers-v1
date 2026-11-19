@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PlusCircle, FileEdit, Layers, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Badge, Button } from "@/components/ui";
-import { getAllExams } from "@/server/repositories/content-repository";
+import { getAdminAllExams } from "@/server/services/content-service";
 import { deleteExamAction } from "@/server/actions/content-actions";
 import { DeleteConfirmButton } from "@/features/admin/components/delete-confirm-button";
 
@@ -12,37 +12,37 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminExamsPage() {
-  const exams = getAllExams();
+  const exams = await getAdminAllExams();
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader
-          title="Exams Management"
-          description="Manage entrance test categories, conduct bodies, and active academic tracks."
-        />
-        <Link href="/admin/exams/new">
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<PlusCircle className="w-4 h-4" />}
-          >
-            Create New Exam
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Exams Management"
+        description="Manage entrance test categories, conduct bodies, and active academic tracks."
+        actions={
+          <Link href="/admin/exams/new">
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<PlusCircle className="w-4 h-4" />}
+            >
+              Create New Exam
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Exams Table */}
-      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-surface border border-border rounded-xl shadow-xs overflow-hidden min-w-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[640px]">
             <thead className="bg-background border-b border-border text-xs font-semibold text-text-secondary uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Code</th>
-                <th className="px-6 py-3.5">Title & Description</th>
-                <th className="px-6 py-3.5">Subjects</th>
-                <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Code</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Title & Description</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Subjects</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5">Status</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">

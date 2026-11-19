@@ -195,6 +195,67 @@ export const testFormSchema = z
   });
 
 // ---------------------------------------------------------------------------
+// Section Form Schema
+// ---------------------------------------------------------------------------
+
+export const sectionFormSchema = z.object({
+  title: z.string().trim().min(2, "Section title must be at least 2 characters"),
+  description: z.string().trim().min(3, "Description must be at least 3 characters"),
+  examId: z.string().trim().min(1, "Exam must be selected"),
+  subjectId: z.string().trim().min(1, "Subject must be selected"),
+  order: z.coerce.number().min(1, "Order must be at least 1").default(1),
+  status: z.enum(["active", "draft", "archived"] as const).default("active"),
+});
+
+// ---------------------------------------------------------------------------
+// Lesson Form Schema
+// ---------------------------------------------------------------------------
+
+export const lessonFormSchema = z.object({
+  title: z.string().trim().min(3, "Lesson title must be at least 3 characters"),
+  slug: z.string().trim().optional(),
+  description: z.string().trim().min(5, "Summary must be at least 5 characters"),
+  content: z.string().trim().min(10, "Lesson content must be at least 10 characters"),
+  examId: z.string().trim().min(1, "Exam must be selected"),
+  subjectId: z.string().trim().min(1, "Subject must be selected"),
+  topicId: z.string().trim().min(1, "Topic must be selected"),
+  sectionId: z.string().trim().optional(),
+  learningObjectives: z.array(z.string()).optional(),
+  order: z.coerce.number().min(1, "Order must be at least 1").default(1),
+  readTimeMinutes: z.coerce.number().min(1).optional(),
+  status: z.enum(["draft", "published", "archived"] as const).default("draft"),
+});
+
+// ---------------------------------------------------------------------------
+// Mock Test Form Schema
+// ---------------------------------------------------------------------------
+
+export const mockTestFormSchema = z
+  .object({
+    title: z.string().trim().min(3, "Mock test title must be at least 3 characters"),
+    description: z.string().trim().min(5, "Description must be at least 5 characters"),
+    examId: z.string().trim().min(1, "Target exam is required"),
+    subjectId: z.string().trim().default("all"),
+    durationMinutes: z.coerce.number().min(5, "Duration must be at least 5 minutes"),
+    difficulty: z.enum(["easy", "medium", "hard", "mixed"] as const).default("mixed"),
+    status: z.enum(["draft", "published", "archived"] as const).default("draft"),
+    totalMarks: z.coerce.number().min(1).default(100),
+    passingMarks: z.coerce.number().min(1).default(50),
+    negativeMarking: z.coerce.number().min(0).default(0),
+    instructions: z.string().trim().optional(),
+    questionIds: z.array(z.string()).default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (data.status === "published" && data.questionIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Cannot publish a mock test with zero questions. Please select questions from the bank.",
+        path: ["questionIds"],
+      });
+    }
+  });
+
+// ---------------------------------------------------------------------------
 // Validation Helper Functions
 // ---------------------------------------------------------------------------
 

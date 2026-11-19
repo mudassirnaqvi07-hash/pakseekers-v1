@@ -2,12 +2,14 @@
 
 /**
  * Student Registration Form — PakSeekers Phase 4.
+ *
+ * Implements accessible student registration with password visibility toggles,
+ * real-time requirement feedback, duplicate submission defense, and success redirection.
  */
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { UserPlus, AlertCircle } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, CheckCircle2, Check, X } from "lucide-react";
 import { Button, Input, Select } from "@/components/ui";
 import { registerStudentAction } from "@/server/actions/auth-actions";
 
@@ -16,9 +18,11 @@ export function StudentRegisterForm({
 }: {
   callbackUrl?: string;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -40,8 +44,15 @@ export function StudentRegisterForm({
     }));
   };
 
+  const hasMinLength = formData.password.length >= 8;
+  const hasLetter = /[A-Za-z]/.test(formData.password);
+  const hasNumber = /\d/.test(formData.password);
+  const passwordsMatch = formData.confirmPassword.length > 0 && formData.password === formData.confirmPassword;
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending || successMsg) return; // Prevent duplicate submissions
+
     setError(null);
 
     const form = e.currentTarget;
@@ -66,34 +77,45 @@ export function StudentRegisterForm({
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      return;
+    }
+
+    if (!/^(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
+      setError("Password must contain at least one letter and one number.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Passwords do not match. Please ensure both fields are identical.");
       return;
     }
 
     startTransition(async () => {
-      const res = await registerStudentAction({
-        name,
-        email,
-        password,
-        confirmPassword,
-        educationLevel,
-        institution,
-        targetExam,
-        phone: phone || undefined,
-        callbackUrl,
-      });
+      try {
+        const res = await registerStudentAction({
+          name,
+          email,
+          password,
+          confirmPassword,
+          educationLevel,
+          institution,
+          targetExam,
+          phone: phone || undefined,
+          callbackUrl,
+        });
 
-      if (!res.success) {
-        setError(res.error);
-      } else {
-        router.push(res.data.redirectUrl);
-        router.refresh();
+        if (!res.success) {
+          setError(res.error);
+        } else {
+          setSuccessMsg("Account created successfully! Preparing your student dashboard...");
+          setTimeout(() => {
+            window.location.href = res.data.redirectUrl;
+          }, 350);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to create account. Please check your details and try again.");
       }
     });
   };
@@ -109,10 +131,22 @@ export function StudentRegisterForm({
       {error && (
         <div
           role="alert"
-          className="p-3 rounded-md bg-error/10 border border-error/20 text-error text-xs flex items-center gap-2"
+          aria-live="polite"
+          className="p-3 rounded-md bg-error/10 border border-error/20 text-error text-xs flex items-start gap-2.5 animate-in fade-in"
         >
-          <AlertCircle className="w-4 h-4 shrink-0" />
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {successMsg && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="p-3 rounded-md bg-success/10 border border-success/20 text-success text-xs flex items-center gap-2.5 animate-in fade-in"
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span className="font-medium">{successMsg}</span>
         </div>
       )}
 
@@ -127,7 +161,7 @@ export function StudentRegisterForm({
           placeholder="e.g. Fatima Zahra"
           value={formData.name}
           onChange={handleChange}
-          disabled={isPending}
+          disabled={isPending || Boolean(successMsg)}
         />
       </div>
 
@@ -142,7 +176,7 @@ export function StudentRegisterForm({
           placeholder="student@example.com"
           value={formData.email}
           onChange={handleChange}
-          disabled={isPending}
+          disabled={isPending || Boolean(successMsg)}
         />
       </div>
 
@@ -150,22 +184,33 @@ export function StudentRegisterForm({
         <div>
           <Input
             id="student-register-password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             name="password"
-            label="Password (min 6 characters)"
+            label="Password"
             required
             autoComplete="new-password"
             placeholder="••••••••"
             value={formData.password}
             onChange={handleChange}
-            disabled={isPending}
+            disabled={isPending || Boolean(successMsg)}
+            rightElement={
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password text" : "Show password text"}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-text-secondary hover:text-text-primary focus:outline-none focus:ring-1 focus:ring-primary rounded transition-colors cursor-pointer"
+                tabIndex={0}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            }
           />
         </div>
 
         <div>
           <Input
             id="student-register-confirm-password"
-            type="password"
+            type={showConfirmPassword ? "text" : "password"}
             name="confirmPassword"
             label="Confirm Password"
             required
@@ -173,10 +218,41 @@ export function StudentRegisterForm({
             placeholder="••••••••"
             value={formData.confirmPassword}
             onChange={handleChange}
-            disabled={isPending}
+            disabled={isPending || Boolean(successMsg)}
+            rightElement={
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                aria-label={showConfirmPassword ? "Hide confirmation password text" : "Show confirmation password text"}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-text-secondary hover:text-text-primary focus:outline-none focus:ring-1 focus:ring-primary rounded transition-colors cursor-pointer"
+                tabIndex={0}
+              >
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            }
           />
         </div>
       </div>
+
+      {/* Password requirements indicators */}
+      {formData.password.length > 0 && (
+        <div className="p-2.5 rounded-lg bg-surface border border-border text-xs flex flex-wrap gap-x-4 gap-y-1 text-text-secondary">
+          <span className={`flex items-center gap-1 ${hasMinLength ? "text-success font-medium" : ""}`}>
+            {hasMinLength ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5 opacity-40" />}
+            At least 8 characters
+          </span>
+          <span className={`flex items-center gap-1 ${hasLetter && hasNumber ? "text-success font-medium" : ""}`}>
+            {hasLetter && hasNumber ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5 opacity-40" />}
+            Letters & numbers
+          </span>
+          {formData.confirmPassword.length > 0 && (
+            <span className={`flex items-center gap-1 ${passwordsMatch ? "text-success font-medium" : "text-error"}`}>
+              {passwordsMatch ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+              {passwordsMatch ? "Passwords match" : "Passwords do not match"}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
@@ -186,7 +262,7 @@ export function StudentRegisterForm({
             label="Education Level"
             value={formData.educationLevel}
             onChange={handleChange}
-            disabled={isPending}
+            disabled={isPending || Boolean(successMsg)}
           >
             <option value="FSc Pre-Medical">FSc Pre-Medical</option>
             <option value="FSc Pre-Engineering">FSc Pre-Engineering</option>
@@ -205,7 +281,7 @@ export function StudentRegisterForm({
             label="Target Entry Exam"
             value={formData.targetExam}
             onChange={handleChange}
-            disabled={isPending}
+            disabled={isPending || Boolean(successMsg)}
           >
             <option value="MDCAT">MDCAT (Medical & Dental)</option>
             <option value="FAST-NU">FAST-NU Entry Test</option>
@@ -228,7 +304,7 @@ export function StudentRegisterForm({
             placeholder="e.g. Punjab College, Lahore"
             value={formData.institution}
             onChange={handleChange}
-            disabled={isPending}
+            disabled={isPending || Boolean(successMsg)}
           />
         </div>
 
@@ -242,7 +318,7 @@ export function StudentRegisterForm({
             placeholder="+92 300 0000000"
             value={formData.phone}
             onChange={handleChange}
-            disabled={isPending}
+            disabled={isPending || Boolean(successMsg)}
           />
         </div>
       </div>
@@ -251,10 +327,10 @@ export function StudentRegisterForm({
         id="student-register-submit"
         type="submit"
         size="md"
-        className="w-full mt-2"
-        disabled={isPending}
+        className="w-full mt-2 font-semibold"
+        isLoading={isPending}
+        disabled={isPending || Boolean(successMsg)}
       >
-        <UserPlus className="w-4 h-4 mr-2" />
         {isPending ? "Creating Account..." : "Create Free Student Account"}
       </Button>
 

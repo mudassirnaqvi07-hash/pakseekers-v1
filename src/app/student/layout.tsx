@@ -6,10 +6,12 @@
  */
 
 import Link from "next/link";
-import { GraduationCap } from "lucide-react";
 import { APP_NAME } from "@/lib/config/app";
+import { BrandLogo } from "@/components/shared";
 import { getCurrentUser } from "@/server/auth/session";
 import { StudentNav } from "@/features/student/components/student-nav";
+
+export const dynamic = "force-dynamic";
 
 export default async function StudentPortalLayout({
   children,
@@ -42,15 +44,8 @@ export default async function StudentPortalLayout({
   return (
     <div className="min-h-screen flex flex-col bg-background text-text-primary">
       <header className="border-b border-border bg-surface">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shadow-xs">
-              <GraduationCap className="w-4 h-4" />
-            </div>
-            <span className="font-bold text-lg tracking-tight text-primary">
-              {APP_NAME}
-            </span>
-          </Link>
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+          <BrandLogo variant="horizontal" size="sm" href="/" subtitle="Student Portal" />
           <Link
             href="/"
             className="text-xs font-semibold text-text-secondary hover:text-primary transition-colors"

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, ArrowLeft } from "lucide-react";
-import { getExamById, getSubjectsByExamId } from "@/features/exams/services/content-service";
+import { getExamById, getSubjectsByExamId } from "@/server/services/content-service";
 import { SubjectCard } from "@/features/exams/components/subject-card";
 import { Button, Badge } from "@/components/ui";
 

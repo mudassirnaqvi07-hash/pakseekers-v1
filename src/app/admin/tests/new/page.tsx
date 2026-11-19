@@ -5,11 +5,11 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { TestBuilderForm } from "@/features/admin/components/test-builder-form";
 import {
-  getAllExams,
-  getAllSubjects,
-  getAllTopics,
-  getAllQuestions,
-} from "@/server/repositories/content-repository";
+  getAdminAllExams,
+  getAdminAllSubjects,
+  getAdminAllTopics,
+  getAdminAllQuestions,
+} from "@/server/services/content-service";
 import { createTestAction } from "@/server/actions/content-actions";
 
 export const metadata: Metadata = {
@@ -28,10 +28,12 @@ export default async function CreateTestPage({
   searchParams,
 }: CreateTestPageProps) {
   const { examId, subjectId, topicId } = await searchParams;
-  const exams = getAllExams();
-  const subjects = getAllSubjects();
-  const topics = getAllTopics();
-  const allQuestions = getAllQuestions();
+  const [exams, subjects, topics, allQuestions] = await Promise.all([
+    getAdminAllExams(),
+    getAdminAllSubjects(),
+    getAdminAllTopics(),
+    getAdminAllQuestions(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlusCircle, FileEdit, HelpCircle, CheckCircle2 } from "lucide-react";
+import { PlusCircle, FileEdit, HelpCircle, CheckCircle2, FileCode2 } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Badge, Button } from "@/components/ui";
 import {
-  getAllQuestions,
-  getAllExams,
-  getTopicById,
-} from "@/server/repositories/content-repository";
+  getAdminAllQuestions,
+  getAdminAllExams,
+  getAdminAllTopics,
+} from "@/server/services/content-service";
 import { deleteQuestionAction } from "@/server/actions/content-actions";
 import { DeleteConfirmButton } from "@/features/admin/components/delete-confirm-button";
 import type { QuestionDifficulty, QuestionStatus } from "@/types";
@@ -33,33 +33,49 @@ export default async function AdminQuestionsPage({
   const { examId, subjectId, topicId, difficulty, status, search } =
     await searchParams;
 
-  const exams = getAllExams();
-  const questions = getAllQuestions({
-    examId,
-    subjectId,
-    topicId,
-    difficulty: difficulty as QuestionDifficulty | undefined,
-    status: status as QuestionStatus | undefined,
-    search,
-  });
+  const [exams, questions, allTopics] = await Promise.all([
+    getAdminAllExams(),
+    getAdminAllQuestions({
+      examId,
+      subjectId,
+      topicId,
+      difficulty: difficulty as QuestionDifficulty | undefined,
+      status: status as QuestionStatus | undefined,
+      search,
+    }),
+    getAdminAllTopics(),
+  ]);
+
+  const topicMap = new Map(allTopics.map((t) => [t.id.toLowerCase(), t]));
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader
-          title="Question Bank"
-          description="Create, review, search, and manage reusable questions for tests and practice modules."
-        />
-        <Link href="/admin/questions/new">
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<PlusCircle className="w-4 h-4" />}
-          >
-            Add Question
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Question Bank"
+        description="Create, review, search, and manage reusable questions for tests and practice modules."
+        actions={
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <Link href="/admin/tests/import">
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileCode2 className="w-4 h-4" />}
+              >
+                Import Quiz JSON
+              </Button>
+            </Link>
+            <Link href="/admin/questions/new">
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<PlusCircle className="w-4 h-4" />}
+              >
+                Add Question
+              </Button>
+            </Link>
+          </div>
+        }
+      />
 
       {/* Filter Toolbar */}
       <div className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3 shadow-xs">
@@ -120,15 +136,15 @@ export default async function AdminQuestionsPage({
       <div className="flex flex-col gap-4">
         {questions.length > 0 ? (
           questions.map((q, idx) => {
-            const topic = getTopicById(q.topicId);
+            const topic = topicMap.get(q.topicId.toLowerCase());
 
             return (
               <div
                 key={q.id}
-                className="bg-surface border border-border rounded-xl p-6 shadow-xs flex flex-col gap-4 hover:border-slate-300 transition-colors"
+                className="bg-surface border border-border rounded-xl p-4 sm:p-6 shadow-xs flex flex-col gap-4 hover:border-slate-300 transition-colors min-w-0"
               >
                 {/* Header info */}
-                <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-border">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold text-xs uppercase">
                       {q.examId}
@@ -142,7 +158,7 @@ export default async function AdminQuestionsPage({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <Badge
                       variant={
                         q.difficulty === "easy"

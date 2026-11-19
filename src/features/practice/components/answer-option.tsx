@@ -65,8 +65,10 @@ export function AnswerOption({
       onClick={handleClick}
       disabled={disabled || !isInteractive}
       aria-pressed={isSelected}
+      data-multiline="true"
       className={cn(
-        "w-full text-left p-4 rounded-lg border transition-all duration-150 flex items-start gap-3.5 group relative",
+        "w-full text-left p-3.5 sm:p-4 rounded-lg border transition-all duration-150 flex items-start gap-3 sm:gap-3.5 group relative min-h-[44px]",
+        "whitespace-normal break-words",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
         disabled && isInteractive && "opacity-50 cursor-not-allowed",
         !disabled && isInteractive && "cursor-pointer",
@@ -84,9 +86,17 @@ export function AnswerOption({
       </span>
 
       {/* Option Text */}
-      <div className="flex-1 text-sm font-medium text-text-primary pt-0.5 leading-relaxed">
+      <div className="flex-1 min-w-0 text-xs sm:text-sm font-medium text-text-primary pt-0.5 leading-relaxed break-words">
         {option.text}
       </div>
+
+      {/* Selected Indicator in Interactive Mode */}
+      {isInteractive && isSelected && (
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-primary shrink-0 pt-0.5 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-primary" />
+          <span className="hidden sm:inline">Selected</span>
+        </div>
+      )}
 
       {/* Review Feedback Icons */}
       {showFeedback && reviewState === "correct" && (

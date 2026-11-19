@@ -4,42 +4,72 @@
    throughout the codebase. Extend this file when new tokens are needed.
    ============================================================================= */
 
-/* Google Fonts must come first — @import rules must precede all other rules */
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..800;1,14..32,300..800&display=swap");
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
+   Single Source of Truth: Centralized Design Tokens
+   Directly derived from the official PakSeekers logo:
+   - Primary: Deep Oxford / Midnight Navy (#011640)
+   - Secondary: Authentic Pakistani Emerald Green (#04501F)
+   - Accent: Academic Guiding Gold (#C59B27)
+   --------------------------------------------------------------------------- */
+:root {
+  /* Core Brand Tokens */
+  --brand-primary:   #011640;
+  --brand-secondary: #04501F;
+  --brand-accent:    #C59B27;
+
+  /* Interactive Hover Variants */
+  --brand-primary-hover:   #0A2559;
+  --brand-secondary-hover: #066628;
+  --brand-accent-hover:    #D4AF37;
+
+  /* Coordinated Neutrals */
+  --background:        #F8FAFC;
+  --surface:           #FFFFFF;
+  --surface-hover:     #F1F5F9;
+  --foreground:        #011640;
+  --foreground-muted:  #475569;
+  --border:            #E2E8F0;
+
+  /* Semantic Feedback Tokens */
+  --success:  #04501F;
+  --error:    #DC2626;
+  --warning:  #C59B27;
+  --disabled: #94A3B8;
+}
+
+/* ---------------------------------------------------------------------------
    Design Tokens — registered in Tailwind's @theme for utility generation
-   ---------------------------------------------------------------------------
-   Usage in JSX:  className="bg-primary text-surface"
-   All tokens follow the naming convention defined in docs/DESIGN-SYSTEM.md
    --------------------------------------------------------------------------- */
 @theme {
   /* Brand Colors */
-  --color-primary:   #123B63;
-  --color-secondary: #0F766E;
-  --color-accent:    #F59E0B;
+  --color-primary:   var(--brand-primary);
+  --color-secondary: var(--brand-secondary);
+  --color-accent:    var(--brand-accent);
 
   /* Surface / Background */
-  --color-background: #F8FAFC;
-  --color-surface:    #FFFFFF;
+  --color-background:    var(--background);
+  --color-surface:       var(--surface);
+  --color-surface-hover: var(--surface-hover);
 
   /* Text */
-  --color-text-primary:   #172033;
-  --color-text-secondary: #64748B;
+  --color-text-primary:   var(--foreground);
+  --color-text-secondary: var(--foreground-muted);
 
   /* Border */
-  --color-border: #E2E8F0;
+  --color-border: var(--border);
 
   /* Semantic */
-  --color-success:  #16A34A;
-  --color-error:    #DC2626;
-  --color-warning:  #F59E0B;
-  --color-disabled: #94A3B8;
+  --color-success:  var(--success);
+  --color-error:    var(--error);
+  --color-warning:  var(--warning);
+  --color-disabled: var(--disabled);
 
   /* Hover variants (used for interactive elements) */
-  --color-primary-hover:   #0E2E4F;
-  --color-secondary-hover: #0C5E57;
+  --color-primary-hover:   var(--brand-primary-hover);
+  --color-secondary-hover: var(--brand-secondary-hover);
+  --color-accent-hover:    var(--brand-accent-hover);
 
   /* Typography */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -83,6 +113,40 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Global Button & Interactive Layout Rules
+   Standard action buttons remain single-line by default, while allowing
+   multi-line buttons (such as MCQ answer options and cards) to wrap naturally.
+   --------------------------------------------------------------------------- */
+.btn {
+  white-space: nowrap;
+}
+
+button:not(.btn-wrap):not([data-multiline="true"]),
+[role="button"]:not(.btn-wrap):not([data-multiline="true"]) {
+  /* Default to nowrap for standard buttons while respecting whitespace-normal classes */
+}
+
+button svg,
+[role="button"] svg {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive Touch & Containment Helpers
+   --------------------------------------------------------------------------- */
+.touch-target-min {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Smooth mobile momentum scrolling */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ---------------------------------------------------------------------------

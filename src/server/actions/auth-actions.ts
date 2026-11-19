@@ -1,39 +1,34 @@
 "use server";
 
 /**
- * Authentication & Student Profile Server Actions — PakSeekers Phase 4.
+ * Authentication & Student Profile Server Actions — PakSeekers Phase 2.
+ *
+ * Implements authoritative mutation actions for student registration, login,
+ * logout, and profile management, consuming the application auth-service.
  */
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { ActionResult, User, TestAttempt } from "@/types";
+import type { ActionResult, SafeUser } from "@/types";
 import {
-  findUserByEmail,
-  verifyPassword,
-  createSession,
-  deleteSession,
-  createUser,
-  updateUserProfile,
-  createTestAttempt,
-} from "@/server/repositories/user-repository";
+  authenticateCredentials,
+  registerNewStudent,
+  invalidateSession,
+  updateProfile,
+} from "@/server/services/auth-service";
 import {
   setSessionCookie,
   clearSessionCookie,
   getCurrentSession,
   getCurrentUser,
-  isSafeCallbackUrl,
+  isSafeStudentCallbackUrl,
 } from "@/server/auth/session";
+import { getAdminEntryPath } from "@/lib/config/admin-path";
 import {
   loginSchema,
   studentRegisterSchema,
   studentProfileSchema,
 } from "@/lib/validations/auth";
-import {
-  getTestById,
-  getExamById,
-  getSubjectById,
-  getTopicById,
-} from "@/server/repositories/content-repository";
 
 // ---------------------------------------------------------------------------
 // Student Authentication Actions
@@ -50,39 +45,54 @@ function safeRevalidate(path: string) {
 export async function loginStudentAction(
   rawInput: unknown
 ): Promise<ActionResult<{ redirectUrl: string }>> {
-  const parsed = loginSchema.safeParse(rawInput);
-  if (!parsed.success) {
+  try {
+    const parsed = loginSchema.safeParse(rawInput);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid email or password.",
+      };
+    }
+
+    const { email, password, callbackUrl } = parsed.data;
+
+    // 1. Authoritative authentication via auth-service (rate limited, scrypt verification)
+    const authResult = await authenticateCredentials(email, password, "student");
+    if (!authResult.success) {
+      return {
+        success: false,
+        error: authResult.failure.error,
+      };
+    }
+
+    // 2. Session fixation defense: invalidate any prior session before setting cookie
+    const existingSession = await getCurrentSession();
+    if (existingSession) {
+      await invalidateSession(existingSession.token);
+    }
+
+    // 3. Set secure HTTP-only cookie with the fresh session token
+    const cookieSet = await setSessionCookie(authResult.data.session.token);
+    if (!cookieSet) {
+      console.warn("Unable to set session cookie in current request context.");
+    }
+
+    safeRevalidate("/student/dashboard");
+    safeRevalidate("/");
+
+    const destination =
+      callbackUrl && isSafeStudentCallbackUrl(callbackUrl)
+        ? callbackUrl.trim()
+        : "/student/dashboard";
+
+    return { success: true, data: { redirectUrl: destination } };
+  } catch (err) {
+    console.error("Student login failed:", err);
     return {
       success: false,
-      error: "Invalid email or password.",
+      error: "Unable to sign in right now. Please try again.",
     };
   }
-
-  const { email, password, callbackUrl } = parsed.data;
-  const user = findUserByEmail(email);
-
-  if (!user || user.role !== "student") {
-    return { success: false, error: "Invalid email or password." };
-  }
-
-  const isPasswordValid = verifyPassword(password, user.passwordHash);
-  if (!isPasswordValid) {
-    return { success: false, error: "Invalid email or password." };
-  }
-
-  // Create session
-  const session = createSession(user.id, user.role);
-  await setSessionCookie(session.token);
-
-  safeRevalidate("/student/dashboard");
-  safeRevalidate("/");
-
-  const destination =
-    callbackUrl && isSafeCallbackUrl(callbackUrl)
-      ? callbackUrl.trim()
-      : "/student/dashboard";
-
-  return { success: true, data: { redirectUrl: destination } };
 }
 
 export async function registerStudentAction(
@@ -107,20 +117,19 @@ export async function registerStudentAction(
     callbackUrl,
   } = parsed.data;
 
-  const existing = findUserByEmail(email);
-  if (existing) {
-    return {
-      success: false,
-      error: "This email is already registered.",
-    };
-  }
-
   try {
-    const newUser = createUser({
+    // 1. Session fixation defense: invalidate existing session & cookie
+    const currentSession = await getCurrentSession();
+    if (currentSession) {
+      await invalidateSession(currentSession.token);
+    }
+    await clearSessionCookie();
+
+    // 2. Register via auth-service (strictly enforces role as student, hashes password)
+    const result = await registerNewStudent({
       name,
       email,
       password,
-      role: "student",
       profile: {
         educationLevel,
         institution,
@@ -129,20 +138,23 @@ export async function registerStudentAction(
       },
     });
 
-    // Create session and set cookie
-    const session = createSession(newUser.id, newUser.role);
-    await setSessionCookie(session.token);
+    // 3. Issue session cookie
+    await setSessionCookie(result.session.token);
 
     safeRevalidate("/student/dashboard");
     safeRevalidate("/");
 
     const destination =
-      callbackUrl && isSafeCallbackUrl(callbackUrl)
+      callbackUrl && isSafeStudentCallbackUrl(callbackUrl)
         ? callbackUrl.trim()
         : "/student/dashboard";
 
     return { success: true, data: { redirectUrl: destination } };
-  } catch (err) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes("already registered") || errorMsg.includes("already exists")) {
+      return { success: false, error: "This email is already registered." };
+    }
     console.error("Student registration error:", err);
     return {
       success: false,
@@ -154,7 +166,7 @@ export async function registerStudentAction(
 export async function logoutStudentAction(): Promise<void> {
   const session = await getCurrentSession();
   if (session) {
-    deleteSession(session.token);
+    await invalidateSession(session.token);
   }
   await clearSessionCookie();
   safeRevalidate("/");
@@ -172,40 +184,54 @@ export async function loginAdminAction(
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues.map((i) => i.message).join("; "),
+      error: "Invalid email or password.",
     };
   }
 
   const { email, password } = parsed.data;
-  const user = findUserByEmail(email);
 
-  if (!user || user.role !== "admin") {
+  try {
+    // 1. Authoritative authentication via auth-service (rate limited, scrypt verification, admin role enforced)
+    const authResult = await authenticateCredentials(email, password, "admin");
+    if (!authResult.success) {
+      return {
+        success: false,
+        error: authResult.failure.error,
+      };
+    }
+
+    // 2. Session fixation defense
+    const existingSession = await getCurrentSession();
+    if (existingSession) {
+      await invalidateSession(existingSession.token);
+    }
+
+    // 3. Set secure HTTP-only cookie
+    const cookieSet = await setSessionCookie(authResult.data.session.token);
+    if (!cookieSet) {
+      throw new Error("Unable to establish admin session.");
+    }
+
+    revalidatePath("/admin/dashboard");
+    return { success: true, data: { redirectUrl: "/admin/dashboard" } };
+  } catch (error) {
+    console.error("Admin login failed:", error);
     return {
       success: false,
-      error: "Invalid administrator credentials or unauthorized role.",
+      error: "Unable to sign in right now. Please try again.",
     };
   }
-
-  const isPasswordValid = verifyPassword(password, user.passwordHash);
-  if (!isPasswordValid) {
-    return { success: false, error: "Invalid email or password." };
-  }
-
-  const session = createSession(user.id, "admin");
-  await setSessionCookie(session.token);
-
-  revalidatePath("/admin");
-  return { success: true, data: { redirectUrl: "/admin" } };
 }
 
 export async function logoutAdminAction(): Promise<void> {
   const session = await getCurrentSession();
   if (session) {
-    deleteSession(session.token);
+    await invalidateSession(session.token);
   }
   await clearSessionCookie();
-  revalidatePath("/admin/login");
-  redirect("/admin/login");
+  const entryPath = getAdminEntryPath();
+  revalidatePath(entryPath);
+  redirect(entryPath);
 }
 
 // ---------------------------------------------------------------------------
@@ -214,10 +240,10 @@ export async function logoutAdminAction(): Promise<void> {
 
 export async function updateStudentProfileAction(
   rawInput: unknown
-): Promise<ActionResult<User>> {
+): Promise<ActionResult<SafeUser>> {
   const user = await getCurrentUser();
-  if (!user) {
-    return { success: false, error: "You must be logged in to update your profile." };
+  if (!user || user.role !== "student") {
+    return { success: false, error: "You must be logged in as a student to update your profile." };
   }
 
   const parsed = studentProfileSchema.safeParse(rawInput);
@@ -228,7 +254,7 @@ export async function updateStudentProfileAction(
     };
   }
 
-  const updated = updateUserProfile(user.id, parsed.data);
+  const updated = await updateProfile(user.id, parsed.data);
   if (!updated) {
     return { success: false, error: "User account could not be found." };
   }
@@ -236,79 +262,4 @@ export async function updateStudentProfileAction(
   revalidatePath("/student/profile");
   revalidatePath("/student/dashboard");
   return { success: true, data: updated };
-}
-
-// ---------------------------------------------------------------------------
-// Test Attempt Persistence Action
-// ---------------------------------------------------------------------------
-
-export async function recordTestAttemptAction(input: {
-  testId?: string;
-  examId: string;
-  subjectId: string;
-  topicId?: string;
-  selectedAnswers: Record<string, string>;
-  score: number;
-  totalQuestions: number;
-  correctCount: number;
-  incorrectCount: number;
-  unattemptedCount: number;
-  percentage: number;
-  questionResults: TestAttempt["questionResults"];
-}): Promise<ActionResult<TestAttempt>> {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "student") {
-    return {
-      success: false,
-      error: "You must be signed in as a student to record test attempts.",
-    };
-  }
-
-  // If a testId is specified, verify it exists and is published
-  let test = null;
-  if (input.testId && input.testId !== "practice-quiz") {
-    test = getTestById(input.testId);
-    if (!test || test.status !== "published") {
-      return {
-        success: false,
-        error: "The requested test is not currently available for submission.",
-      };
-    }
-  }
-
-  // Resolve titles
-  const exam = getExamById(input.examId);
-  const subject = getSubjectById(input.subjectId);
-  const topic = input.topicId ? getTopicById(input.topicId) : null;
-
-  const now = new Date().toISOString();
-
-  // Create attempt strictly bound to the authenticated student's ID
-  const attempt = createTestAttempt({
-    studentId: user.id,
-    testId: test?.id || input.testId || "practice-quiz",
-    testTitle: test?.title || (topic ? `${topic.title} Practice` : "Subject Practice"),
-    examId: input.examId,
-    examTitle: exam?.title || input.examId.toUpperCase(),
-    subjectId: input.subjectId,
-    subjectTitle: subject?.title || "Subject",
-    topicId: input.topicId,
-    topicTitle: topic?.title,
-    selectedAnswers: input.selectedAnswers,
-    score: input.score,
-    totalQuestions: input.totalQuestions,
-    correctCount: input.correctCount,
-    incorrectCount: input.incorrectCount,
-    unattemptedCount: input.unattemptedCount,
-    percentage: input.percentage,
-    questionResults: input.questionResults,
-    startedAt: now,
-    completedAt: now,
-    status: "completed",
-  });
-
-  safeRevalidate("/student/dashboard");
-  safeRevalidate("/student/attempts");
-
-  return { success: true, data: attempt };
 }

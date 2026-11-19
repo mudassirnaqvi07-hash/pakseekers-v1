@@ -50,9 +50,12 @@ export interface QuestionOption {
 export interface Question {
   id: string;
   questionText: string;
+  text?: string;
+  code?: string;
   options: QuestionOption[];
   /** Identifier of the correct option matching QuestionOption.id */
   correctAnswer: string;
+  correctOptionId?: string;
   /** Detailed step-by-step pedagogical explanation */
   explanation: string;
   /** Foreign key relationships */
@@ -65,6 +68,12 @@ export interface Question {
   createdAt?: string;
   updatedAt?: string;
 }
+
+/**
+ * Sanitized question model sent to the student client prior to submission.
+ * Completely strips correctAnswer and explanation to eliminate answer-key leakage.
+ */
+export type ClientQuestion = Omit<Question, "correctAnswer" | "explanation">;
 
 // ---------------------------------------------------------------------------
 // Content Hierarchy Models
@@ -135,8 +144,177 @@ export interface Test {
   questionCount: number;
   difficulty: TestDifficulty;
   status: TestStatus;
+  /** Test category: standard practice test or full-length mock simulation */
+  testType?: "practice" | "mock";
+  /** Optional scoring rules for full-length simulation */
+  totalMarks?: number;
+  passingMarks?: number;
+  negativeMarking?: number; // e.g. 0.25 marks deducted per wrong answer, 0 if none
+  instructions?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Section Model
+// ---------------------------------------------------------------------------
+
+/**
+ * Curriculum section dividing subjects or tests into logical units.
+ * e.g., MDCAT Biology -> Cellular Biology, Genetics, Human Physiology
+ */
+export interface Section {
+  id: string;
+  title: string;
+  description: string;
+  examId: string;
+  subjectId: string;
+  order: number;
+  durationMinutes?: number;
+  totalMarks?: number;
+  status: ContentStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Lesson Model
+// ---------------------------------------------------------------------------
+
+export type LessonStatus = "draft" | "published" | "archived";
+
+/**
+ * Educational lesson delivering core theory, formulas, and study notes.
+ */
+export interface Lesson {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  summary?: string;
+  content: string; // Markdown / LaTeX supported structured text
+  examId: string;
+  subjectId: string;
+  topicId: string;
+  sectionId?: string;
+  learningObjectives?: string[];
+  order: number;
+  readTimeMinutes: number;
+  estimatedReadMinutes?: number;
+  status: LessonStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Question Report Model
+// ---------------------------------------------------------------------------
+
+export type QuestionReportReason =
+  | "wrong_answer"
+  | "typo"
+  | "unclear_explanation"
+  | "explanation_error"
+  | "out_of_syllabus"
+  | "other";
+
+export type QuestionReportStatus =
+  | "pending"
+  | "under_review"
+  | "resolved"
+  | "rejected";
+
+export interface QuestionReport {
+  id: string;
+  questionId: string;
+  questionText: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  userEmail?: string;
+  reason: QuestionReportReason;
+  description: string;
+  status: QuestionReportStatus;
+  adminNotes?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Platform Settings Model
+// ---------------------------------------------------------------------------
+
+export interface GeneralSettings {
+  platformName: string;
+  tagline: string;
+  contactEmail: string;
+  supportPhone: string;
+  address: string;
+}
+
+export interface PlatformConfigSettings {
+  allowRegistration: boolean;
+  maintenanceMode: boolean;
+  announcementBanner?: string;
+}
+
+export interface ExaminationSettings {
+  defaultTestDuration: number; // in minutes
+  passingScorePercentage: number;
+  allowTestRetakes: boolean;
+  showExplanationsImmediately: boolean;
+}
+
+export interface ContentDefaultsSettings {
+  defaultQuestionStatus: QuestionStatus;
+  enableQuestionReporting: boolean;
+  maxQuestionsPerCustomTest: number;
+}
+
+export interface PlatformSettings {
+  id: "default";
+  general: GeneralSettings;
+  platform: PlatformConfigSettings;
+  examination: ExaminationSettings;
+  content: ContentDefaultsSettings;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface SystemSecurityStatus {
+  nodeEnv: string;
+  isProduction: boolean;
+  databaseConnected: boolean;
+  clusterTarget: string;
+  sessionSecurity: {
+    cookieSecure: boolean;
+    sameSite: string;
+    httpOnly: boolean;
+    tokenEncryption: string;
+    tokenHashing?: string;
+    cookieSameSite?: string;
+    secretConfigured?: boolean;
+  };
+  passwordSecurity: {
+    algorithm: string;
+    keyLength: number;
+    saltLength: number;
+  };
+  tlsActive: boolean;
+  appSecretConfigured: boolean;
+  database: {
+    connected: boolean;
+    clusterType: string;
+    hostSummary: string;
+    replicaSet: string;
+  };
+  runtime: {
+    nodeVersion: string;
+    nodeEnv: string;
+    platform: string;
+  };
 }
 
 // ---------------------------------------------------------------------------

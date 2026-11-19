@@ -57,8 +57,8 @@ Primary stack:
 * TypeScript
 * App Router
 * Tailwind CSS
-* PostgreSQL
-* Prisma
+* MongoDB Atlas
+* Official MongoDB Node.js Driver (`mongodb`)
 * Zod
 * React Hook Form
 * Lucide React
@@ -140,11 +140,11 @@ Avoid creating one enormous global folder containing unrelated business logic.
 
 ## 8. Database Rules
 
-PostgreSQL is the primary database.
+MongoDB Atlas is the approved target database.
 
-Prisma is the ORM.
+The official MongoDB Node.js Driver (`mongodb`) is used for all database access. Prisma, Supabase, Neon, or other competing ORMs are strictly prohibited.
 
-Database access must not be performed directly from presentation components.
+Database access must not be performed directly from presentation components. All queries and mutations must reside behind the repository layer (`src/server/repositories/`).
 
 Use proper:
 
@@ -448,7 +448,7 @@ Database schema changes must be deliberate.
 
 Never modify production database structure manually without documenting the change.
 
-Use Prisma migrations.
+Use documented, idempotent database migration scripts in `scripts/` with centralized schema definitions (`src/server/db/schema.ts`).
 
 Before changing the schema:
 
