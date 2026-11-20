@@ -11,9 +11,11 @@ import {
 import { requireAdmin } from "@/server/auth/session";
 import { getStudentWithDetails } from "@/server/services/user-service";
 import { getAllExams } from "@/server/services/content-service";
+import { getStudentEnrollments } from "@/server/repositories/enrollment-repository";
 import { Button, Badge, Card } from "@/components/ui";
 import { StudentStatusToggle } from "@/features/admin/components/student-status-toggle";
 import { StudentEditForm } from "@/features/admin/components/student-edit-form";
+import { StudentEnrollmentsCard } from "@/features/admin/components/student-enrollments-card";
 import type { Exam, TestAttempt } from "@/types";
 
 export const metadata: Metadata = {
@@ -28,9 +30,10 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
   await requireAdmin();
   const { id } = await params;
 
-  const [studentData, exams] = await Promise.all([
+  const [studentData, exams, enrollments] = await Promise.all([
     getStudentWithDetails(id),
     getAllExams(),
+    getStudentEnrollments(id),
   ]);
 
   if (!studentData) {
@@ -150,6 +153,14 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
           </p>
         </Card>
       </div>
+
+      {/* Student Examination Enrollments */}
+      <StudentEnrollmentsCard
+        studentId={student.id}
+        studentName={student.name}
+        enrollments={enrollments}
+        allExams={exams}
+      />
 
       {/* Profile Edit Form */}
       <Card className="p-4 sm:p-6">

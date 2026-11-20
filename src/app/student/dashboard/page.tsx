@@ -19,12 +19,19 @@ import {
   Award,
   AlertTriangle,
   GraduationCap,
+  PlusCircle,
 } from "lucide-react";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { EmptyState } from "@/components/shared";
 import { requireStudent } from "@/server/auth/session";
 import { getStudentDashboardStats, getStudentAttempts } from "@/server/services/user-service";
-import { getAllPublishedTests, getAllExams, getAllSubjects } from "@/server/services/content-service";
+import {
+  getAllExams,
+  getSubjectsByExamId,
+  getEnrolledTests,
+} from "@/server/services/content-service";
+import { getStudentEnrolledExamsDetails } from "@/server/services/enrollment-service";
+import { ExamEnrollmentCard } from "@/features/exams/components/exam-enrollment-card";
 
 export const metadata: Metadata = {
   title: "Student Dashboard",
@@ -34,16 +41,29 @@ export const metadata: Metadata = {
 export default async function StudentDashboardPage() {
   const user = await requireStudent();
 
-  const [stats, attempts, allTests, exams, subjects] = await Promise.all([
+  const [stats, attempts, enrolledDetails, allExams] = await Promise.all([
     getStudentDashboardStats(user.id),
     getStudentAttempts(user.id),
-    getAllPublishedTests(),
+    getStudentEnrolledExamsDetails(user.id),
     getAllExams(),
-    getAllSubjects(),
   ]);
 
+  // Scope subjects and tests strictly to active enrolled examinations
+  const hasEnrollments = enrolledDetails.length > 0;
+  const enrolledSubjects = hasEnrollments
+    ? (await Promise.all(enrolledDetails.map((d) => getSubjectsByExamId(d.exam.id)))).flat()
+    : [];
+
+  const enrolledTests = hasEnrollments
+    ? await getEnrolledTests(user.id)
+    : [];
+
   const recentAttempts = attempts.slice(0, 5);
-  const featuredTests = allTests.slice(0, 4);
+  const featuredTests = enrolledTests.slice(0, 4);
+
+  const preparationTrackTitle = hasEnrollments
+    ? enrolledDetails.map((d) => d.exam.code).join(" • ")
+    : user.profile.targetExam || "Entry Test Prep";
 
   return (
     <div className="flex flex-col gap-8 w-full">
@@ -54,7 +74,7 @@ export default async function StudentDashboardPage() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <Badge variant="info" className="font-semibold text-xs">
-              {user.profile.targetExam || "Entry Test Prep"}
+              {preparationTrackTitle}
             </Badge>
             <span className="text-xs text-text-secondary">
               {user.profile.institution}
@@ -70,22 +90,84 @@ export default async function StudentDashboardPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
+          <Link href="/exams" className="w-full sm:w-auto">
+            <Button
+              size="md"
+              variant="outline"
+              className="w-full sm:w-auto justify-center"
+              leftIcon={<PlusCircle className="w-4 h-4" />}
+            >
+              Add Another Exam
+            </Button>
+          </Link>
           <Link href="/student/tests" className="w-full sm:w-auto">
             <Button
               size="md"
               className="shadow-xs w-full sm:w-auto justify-center"
               leftIcon={<FileCheck2 className="w-4 h-4" />}
             >
-              Take a Practice Test
-            </Button>
-          </Link>
-          <Link href="/student/profile" className="w-full sm:w-auto">
-            <Button variant="outline" size="md" className="w-full sm:w-auto justify-center">
-              Edit Profile
+              Take Practice Test
             </Button>
           </Link>
         </div>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* My Examinations / Active Preparations Section */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-text-primary">
+              My Examination Preparations
+            </h2>
+            <p className="text-xs text-text-secondary">
+              {hasEnrollments
+                ? `You are currently actively preparing for ${enrolledDetails.length} examination${
+                    enrolledDetails.length === 1 ? "" : "s"
+                  }.`
+                : "Select an examination track to activate your curriculum workspace."}
+            </p>
+          </div>
+          <Link
+            href="/exams"
+            className="text-xs font-semibold text-primary hover:underline inline-flex flex-row items-center gap-1 whitespace-nowrap shrink-0"
+          >
+            <span>Browse all exams</span>
+            <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+          </Link>
+        </div>
+
+        {hasEnrollments ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {enrolledDetails.map((details) => (
+              <ExamEnrollmentCard
+                key={details.enrollment.id}
+                details={details}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border bg-surface/70 p-6 sm:p-8 text-center flex flex-col items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <GraduationCap className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-text-primary">
+                No Active Examination Preparations
+              </h3>
+              <p className="text-xs text-text-secondary max-w-md mx-auto mt-1">
+                You have not enrolled in any examination tracks yet. Choose your target entrance exams (MDCAT, ECAT, FAST, NTS) to access curriculum subjects and practice tests.
+              </p>
+            </div>
+            <Link href="/exams" className="mt-2">
+              <Button size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
+                Explore Examination Tracks
+              </Button>
+            </Link>
+          </div>
+        )}
+      </section>
 
       {/* ------------------------------------------------------------------ */}
       {/* Metric Overview Cards (Authoritative Database Analytics) */}
@@ -304,7 +386,7 @@ export default async function StudentDashboardPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Curriculum Disciplines & Subjects Quick Access */}
       {/* ------------------------------------------------------------------ */}
-      {subjects && subjects.length > 0 && (
+      {enrolledSubjects && enrolledSubjects.length > 0 && (
         <section className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
@@ -312,7 +394,7 @@ export default async function StudentDashboardPage() {
                 Curriculum Subjects
               </h2>
               <p className="text-xs text-text-secondary">
-                Explore dedicated subjects across MDCAT, ECAT, and NET syllabi
+                Explore dedicated subjects across your enrolled examination tracks
               </p>
             </div>
             <Link
@@ -325,8 +407,8 @@ export default async function StudentDashboardPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {subjects.map((sub) => {
-              const exam = exams.find((e) => e.id === sub.examId);
+            {enrolledSubjects.map((sub) => {
+              const exam = allExams.find((e) => e.id === sub.examId);
               return (
                 <Link
                   key={sub.id}
@@ -445,14 +527,14 @@ export default async function StudentDashboardPage() {
               href="/student/tests"
               className="text-xs font-semibold text-primary hover:underline inline-flex flex-row items-center gap-1 whitespace-nowrap shrink-0"
             >
-              <span>Browse all ({allTests.length})</span>
+              <span>Browse all ({enrolledTests.length})</span>
               <ArrowRight className="w-3.5 h-3.5 shrink-0" />
             </Link>
           </div>
 
           <div className="flex flex-col gap-3">
             {featuredTests.map((test) => {
-              const exam = exams.find((e) => e.id === test.examId);
+              const exam = allExams.find((e) => e.id === test.examId);
               return (
                 <Card
                   key={test.id}

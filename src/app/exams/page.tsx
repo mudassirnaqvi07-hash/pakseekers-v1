@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { getAllExams } from "@/server/services/content-service";
+import { getCurrentUser } from "@/server/auth/session";
+import { getStudentEnrollments } from "@/server/repositories/enrollment-repository";
 import { ExamCard } from "@/features/exams/components/exam-card";
 import { PageHeader } from "@/components/shared";
 import { EmptyState } from "@/components/shared";
@@ -13,7 +15,20 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function ExamsPage() {
-  const exams = await getAllExams();
+  const [exams, user] = await Promise.all([
+    getAllExams(),
+    getCurrentUser(),
+  ]);
+
+  const activeEnrollments = user
+    ? await getStudentEnrollments(user.id, "ACTIVE")
+    : [];
+
+  const enrolledExamIds = new Set(
+    activeEnrollments.map((e) => e.examinationId.toLowerCase())
+  );
+
+  const isStudent = user?.role === "student" || user?.role === "admin";
 
   return (
     <div className="flex flex-col gap-8">
@@ -27,7 +42,12 @@ export default async function ExamsPage() {
       {exams.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {exams.map((exam) => (
-            <ExamCard key={exam.id} exam={exam} />
+            <ExamCard
+              key={exam.id}
+              exam={exam}
+              isEnrolled={enrolledExamIds.has(exam.id.toLowerCase())}
+              showEnrollAction={isStudent}
+            />
           ))}
         </div>
       ) : (

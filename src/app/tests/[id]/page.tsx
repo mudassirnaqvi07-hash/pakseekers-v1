@@ -18,6 +18,7 @@ import {
   AlertCircle,
   FileText,
   ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { requireStudent } from "@/server/auth/session";
 import {
@@ -27,6 +28,8 @@ import {
   getExamById,
   getSubjectById,
 } from "@/server/services/content-service";
+import { canAccessExamination } from "@/server/services/enrollment-service";
+import { EnrollExamButton } from "@/features/exams/components/enroll-exam-button";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 
 interface TestByIdPageProps {
@@ -37,7 +40,7 @@ export default async function TestByIdPage({ params }: TestByIdPageProps) {
   const { id } = await params;
 
   // 1. Enforce student authentication with callbackUrl
-  await requireStudent(`/tests/${id}`);
+  const user = await requireStudent(`/tests/${id}`);
 
   // 2. Resolve test
   const test = await getTestById(id);
@@ -45,11 +48,51 @@ export default async function TestByIdPage({ params }: TestByIdPageProps) {
     notFound();
   }
 
-  // 3. Resolve parent exam & subject metadata
-  const [exam, subject] = await Promise.all([
+  // 3. Resolve parent exam, subject metadata, and enrollment access
+  const [exam, subject, hasAccess] = await Promise.all([
     getExamById(test.examId),
     getSubjectById(test.subjectId),
+    canAccessExamination(user.id, test.examId),
   ]);
+
+  // Access Restriction Gate: Student must be enrolled in parent exam track
+  if (!hasAccess) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 sm:px-6">
+        <div className="rounded-xl border border-border bg-surface p-6 sm:p-8 text-center flex flex-col items-center gap-4 shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+            <Lock className="w-7 h-7" />
+          </div>
+          <div>
+            <Badge variant="warning" className="mb-2">
+              Enrollment Required
+            </Badge>
+            <h1 className="text-xl sm:text-2xl font-bold text-text-primary">
+              Enroll in {exam?.code || "Examination"} to Take This Test
+            </h1>
+            <p className="text-sm text-text-secondary mt-2 max-w-md mx-auto leading-relaxed">
+              &quot;{test.title}&quot; is part of the {exam?.title || "selected examination"} preparation track. You must be actively enrolled in this examination to access the test canvas and submit attempts.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 mt-3 w-full sm:w-auto">
+            <EnrollExamButton
+              examId={test.examId}
+              examCode={exam?.code}
+              size="md"
+              variant="primary"
+              className="w-full sm:w-auto justify-center"
+            />
+            <Link href="/exams" className="w-full sm:w-auto">
+              <Button variant="outline" size="md" className="w-full sm:w-auto justify-center">
+                Browse All Exams
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // 4. Dynamically resolve topic
   let resolvedTopicId = test.topicId;
