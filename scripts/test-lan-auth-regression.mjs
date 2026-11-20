@@ -221,7 +221,8 @@ async function runLanRegressionTests() {
   try {
     client = new MongoClient(mongoUri, { serverSelectionTimeoutMS: 3000, connectTimeoutMS: 5000 });
     await client.connect();
-    db = client.db("pakseekers");
+    const targetDb = process.env.MONGODB_DB || "pakseekers_dev";
+    db = client.db(targetDb);
     const foundStudent = await db.collection("users").findOne({ email: "student@pakseekers.com" });
     const foundAdmin = await db.collection("users").findOne({ email: "admin@pakseekers.com" });
     if (foundStudent) studentUser = foundStudent;
