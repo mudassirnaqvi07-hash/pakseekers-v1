@@ -117,7 +117,10 @@ const envSchema = z
     SMTP_USER: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM: z.string().default("PakSeekers <mudassirhassanreall@gmail.com>"),
-    APP_URL: z.string().default("http://localhost:3000"),
+    APP_URL: z
+      .string()
+      .optional()
+      .transform((val) => val?.trim() || undefined),
   })
   .transform((data) => {
     const rawUri =

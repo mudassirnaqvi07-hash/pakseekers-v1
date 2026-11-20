@@ -143,14 +143,21 @@ export async function registerStudentAction(
     });
 
     // Important: Do NOT create or set a session cookie! The student must verify email first.
+    let message: string;
+    if (result.message) {
+      message = result.message;
+    } else if (result.emailSent) {
+      message = "Account created successfully! We have sent a verification link to your email address.";
+    } else {
+      message = "Account created! However, we were unable to deliver the verification email right now. Please click 'Resend Email' below to try again.";
+    }
+
     return {
       success: true,
       data: {
         email: result.user.email,
         emailSent: result.emailSent,
-        message: result.emailSent
-          ? "Account created successfully! We have sent a verification link to your email address."
-          : "Account created! Please check your email or request a verification link before signing in.",
+        message,
       },
     };
   } catch (err: unknown) {

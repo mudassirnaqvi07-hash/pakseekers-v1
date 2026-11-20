@@ -174,6 +174,25 @@ export async function setEmailVerificationToken(
 }
 
 /**
+ * Clears the email verification token and expiration for a student account.
+ * Used when email delivery fails or to invalidate an unusable token.
+ */
+export async function clearEmailVerificationToken(userId: string): Promise<boolean> {
+  const db = await getMongoDb();
+  const res = await db.collection<UserDoc>(COLLECTIONS.USERS).updateOne(
+    { id: userId },
+    {
+      $set: {
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+    }
+  );
+  return res.matchedCount > 0;
+}
+
+/**
  * Atomically verifies a user's email using the provided SHA-256 token hash.
  * Single-use: invalidates and clears the token upon verification.
  */
