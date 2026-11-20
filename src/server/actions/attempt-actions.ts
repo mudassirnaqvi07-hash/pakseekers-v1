@@ -22,6 +22,7 @@ import {
   getQuestionsByIds,
   getQuestionsByTopicId,
 } from "@/server/services/content-service";
+import { canAccessExamination } from "@/server/services/enrollment-service";
 import { evaluateQuiz } from "@/features/practice/utils/evaluator";
 
 function safeRevalidate(path: string) {
@@ -55,6 +56,15 @@ export async function recordTestAttemptAction(input: {
       return {
         success: false,
         error: "You must be signed in as a student to record test attempts.",
+      };
+    }
+
+    // Authoritative Access Enforcement: Verify student has active enrollment for this exam
+    const hasAccess = await canAccessExamination(user.id, input.examId);
+    if (!hasAccess) {
+      return {
+        success: false,
+        error: "You are not actively enrolled in this examination track. Please enroll to record test attempts.",
       };
     }
 

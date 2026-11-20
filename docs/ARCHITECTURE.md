@@ -72,8 +72,9 @@ src/
 ├── server/
 │   ├── actions/
 │   │   ├── auth-actions.ts       ← Student/Admin login, register, logout, profile update
-│   │   ├── attempt-actions.ts    ← Test attempt persistence (recordTestAttemptAction)
-│   │   └── content-actions.ts    ← Admin content CRUD + importQuizAction
+│   │   ├── attempt-actions.ts    ← Test attempt persistence + canAccessExamination enforcement
+│   │   ├── content-actions.ts    ← Admin content CRUD + subject associations + importQuizAction
+│   │   └── enrollment-actions.ts ← Student exam enrollment, soft-removal, and admin management
 │   ├── auth/
 │   │   ├── password.ts           ← Scrypt password hashing & constant-time verification
 │   │   ├── tokens.ts             ← 256-bit session token generator & SHA-256 token hashing
@@ -86,9 +87,11 @@ src/
 │   ├── services/                 ← Application/service layer (business rules)
 │   │   ├── auth-service.ts       ← User authentication, registration, session management, RBAC
 │   │   ├── content-service.ts    ← Canonical content API + evaluateQuiz (SINGLE SOURCE OF TRUTH)
+│   │   ├── enrollment-service.ts ← Multi-exam enrollment, canAccessExamination, per-exam stats
 │   │   └── user-service.ts       ← Student data API (dashboard stats, attempts)
 │   └── repositories/             ← Data access layer (native MongoDB operations)
-│       ├── content-repository.ts ← MongoDB collections: exams, subjects, topics, questions, tests
+│       ├── content-repository.ts ← MongoDB collections: exams, subjects, exam_subjects, topics, questions, tests
+│       ├── enrollment-repository.ts ← MongoDB collection: student_enrollments (ACTIVE / REMOVED)
 │       └── user-repository.ts    ← MongoDB collections: users, sessions, test_attempts
 │
 ├── lib/
@@ -271,3 +274,29 @@ The **Quiz Importer** (`/admin/tests/import`) allows administrators to paste JSO
 4. **Student Playability**:
    * Stored quizzes appear immediately in topic pages and are attempted through `/exams/[examId]/topics/[topicId]/practice?testId=[id]` and `/tests/[id]`.
    * Standard student authentication, attempt tracking, scoring, and results tracking remain identical.
+
+---
+
+## Multi-Exam Enrollment & Access Architecture (v1.2)
+
+### 1. Multi-Track Concurrent Preparation
+A single student account can concurrently prepare for multiple independent examination tracks (e.g. MDCAT, ECAT, FAST, NUST NET). Each track maintains independent progress, analytics, and attempt history.
+
+### 2. Many-to-Many Reusable Subject Model
+Academic subjects (e.g., Physics, Chemistry) are normalized and reused across multiple examinations via the `exam_subjects` junction collection:
+- **Sequence Ordering**: Each exam can define its own `displayOrder` (e.g., MDCAT Physics = 1, ECAT Physics = 2).
+- **Weighting**: Optional `weightage` per exam.
+- **Zero Content Duplication**: Question banks, topics, and pedagogical explanations are shared seamlessly.
+
+### 3. Strict Server-Side Access Enforcement
+Content access is strictly gated server-side via `canAccessExamination(studentId, examId)`:
+- **Protected Resources**: Examination subjects, topics, practice quizzes, mock tests, and test-taking canvases.
+- **IDOR Prevention**: `recordTestAttemptAction` verifies session enrollment before accepting submissions or revealing answer keys.
+- **Admin Bypass**: Administrators maintain global inspection and debugging access (`role === "admin"`).
+
+### 4. Soft-Removal & Historical Data Immutability
+When a student removes an examination track:
+- The enrollment document transitions to `status: "REMOVED"`.
+- Active workspace and new test access are revoked.
+- All historical attempts, scores, and analytics in `test_attempts` are strictly preserved and remain reviewable.
+- The student can re-enroll at any time to instantly reactivate workspace access.

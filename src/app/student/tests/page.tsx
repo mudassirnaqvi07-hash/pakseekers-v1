@@ -7,15 +7,16 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Clock, HelpCircle, ArrowRight, Layers, Award } from "lucide-react";
+import { Clock, HelpCircle, ArrowRight, Layers, Award, PlusCircle } from "lucide-react";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { PageHeader, EmptyState } from "@/components/shared";
 import { requireStudent } from "@/server/auth/session";
 import {
-  getAllPublishedTests,
   getAllExams,
-  getAllSubjects,
+  getSubjectsByExamId,
+  getEnrolledTests,
 } from "@/server/services/content-service";
+import { getStudentEnrollments } from "@/server/repositories/enrollment-repository";
 
 export const metadata: Metadata = {
   title: "Available Tests & Mocks — PakSeekers",
@@ -27,14 +28,60 @@ export default async function StudentTestsPage({
 }: {
   searchParams: Promise<{ exam?: string; subject?: string; type?: string }>;
 }) {
-  await requireStudent();
+  const user = await requireStudent();
   const { exam: selectedExam, subject: selectedSubject, type: selectedType } =
     await searchParams;
 
-  const [rawTests, exams, allSubjects] = await Promise.all([
-    getAllPublishedTests(selectedExam),
+  const [activeEnrollments, allExams] = await Promise.all([
+    getStudentEnrollments(user.id, "ACTIVE"),
     getAllExams(),
-    getAllSubjects(selectedExam),
+  ]);
+
+  if (activeEnrollments.length === 0) {
+    return (
+      <div className="flex flex-col gap-8 w-full">
+        <PageHeader
+          title="Available Curriculum Tests & Mocks"
+          description="Choose a timed diagnostic assessment or full-length entrance exam simulation under realistic test conditions."
+        />
+        <EmptyState
+          icon={<Award className="w-8 h-8 text-primary" />}
+          title="No Active Examination Preparations"
+          description="You are not actively enrolled in any examination tracks. Please enroll in your target exam (MDCAT, ECAT, FAST, NTS) to access curriculum tests."
+          action={
+            <Link href="/exams">
+              <Button size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
+                Browse Examination Catalog
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  const enrolledExamIds = new Set(
+    activeEnrollments.map((e) => e.examinationId.toLowerCase())
+  );
+  const enrolledExams = allExams.filter((e) =>
+    enrolledExamIds.has(e.id.toLowerCase())
+  );
+
+  // Validate selectedExam against enrolled tracks
+  const effectiveExam =
+    selectedExam && enrolledExamIds.has(selectedExam.toLowerCase())
+      ? selectedExam
+      : undefined;
+
+  const [rawTests, allSubjects] = await Promise.all([
+    getEnrolledTests(user.id, { examId: effectiveExam }),
+    effectiveExam
+      ? getSubjectsByExamId(effectiveExam)
+      : (
+          await Promise.all(
+            enrolledExams.map((e) => getSubjectsByExamId(e.id))
+          )
+        ).flat(),
   ]);
 
   let allTests = selectedSubject
@@ -121,10 +168,10 @@ export default async function StudentTestsPage({
               size="sm"
               className="text-xs shrink-0 h-7 px-2.5"
             >
-              All Exams
+              All My Exams
             </Button>
           </Link>
-          {exams.map((e) => (
+          {enrolledExams.map((e) => (
             <Link
               key={e.id}
               href={`/student/tests?exam=${e.id}${
@@ -140,6 +187,16 @@ export default async function StudentTestsPage({
               </Button>
             </Link>
           ))}
+          <Link href="/exams">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs shrink-0 h-7 px-2 border-dashed"
+              leftIcon={<PlusCircle className="w-3 h-3" />}
+            >
+              Add Exam Track
+            </Button>
+          </Link>
         </div>
 
         {/* Subject Filter Pills (when available) */}
@@ -193,7 +250,7 @@ export default async function StudentTestsPage({
       {allTests.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {allTests.map((test) => {
-            const exam = exams.find((e) => e.id === test.examId);
+            const exam = allExams.find((e) => e.id === test.examId);
             const subject = allSubjects.find((s) => s.id === test.subjectId);
             const isMock = test.testType === "mock";
 

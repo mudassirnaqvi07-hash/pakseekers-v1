@@ -9,7 +9,7 @@
  */
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import type { ActionResult, Exam, Subject, Topic, Question, Test, Section, Lesson } from "@/types";
+import type { ActionResult, Exam, Subject, ExamSubject, Topic, Question, Test, Section, Lesson } from "@/types";
 import * as contentRepo from "@/server/repositories/content-repository";
 import { getCurrentUser } from "@/server/auth/session";
 import {
@@ -214,6 +214,76 @@ export async function deleteSubjectAction(id: string): Promise<ActionResult<void
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to delete subject",
+    };
+  }
+}
+
+export async function assignSubjectToExamAction(
+  examId: string,
+  subjectId: string,
+  displayOrder?: number,
+  weightage?: number
+): Promise<ActionResult<ExamSubject>> {
+  const authError = await verifyAdminAuth();
+  if (authError) return authError;
+
+  try {
+    const junction = await contentRepo.assignSubjectToExam(
+      examId,
+      subjectId,
+      displayOrder,
+      weightage
+    );
+    revalidateAllPaths();
+    revalidatePath(`/admin/exams/${examId}/edit`);
+    return { success: true, data: junction };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to associate subject to exam",
+    };
+  }
+}
+
+export async function removeSubjectFromExamAction(
+  examId: string,
+  subjectId: string
+): Promise<ActionResult<void>> {
+  const authError = await verifyAdminAuth();
+  if (authError) return authError;
+
+  try {
+    const success = await contentRepo.removeSubjectFromExam(examId, subjectId);
+    if (!success) {
+      return { success: false, error: "Subject association not found or already removed." };
+    }
+    revalidateAllPaths();
+    revalidatePath(`/admin/exams/${examId}/edit`);
+    return { success: true, data: undefined };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to remove subject from exam",
+    };
+  }
+}
+
+export async function updateExamSubjectOrderAction(
+  examId: string,
+  orderList: { subjectId: string; displayOrder: number }[]
+): Promise<ActionResult<void>> {
+  const authError = await verifyAdminAuth();
+  if (authError) return authError;
+
+  try {
+    await contentRepo.updateExamSubjectOrder(examId, orderList);
+    revalidateAllPaths();
+    revalidatePath(`/admin/exams/${examId}/edit`);
+    return { success: true, data: undefined };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to reorder subjects",
     };
   }
 }

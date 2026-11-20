@@ -20,6 +20,7 @@ import { unstable_cache } from "next/cache";
 import type {
   Exam,
   Subject,
+  ExamSubject,
   Topic,
   Question,
   Test,
@@ -29,8 +30,9 @@ import type {
 } from "@/types";
 import type { QuestionFilters, TestFilters, DashboardStats } from "@/server/repositories/content-repository";
 import * as contentRepo from "@/server/repositories/content-repository";
+import { getStudentEnrollments } from "@/server/repositories/enrollment-repository";
 
-export type { QuestionFilters, TestFilters, DashboardStats };
+export type { QuestionFilters, TestFilters, DashboardStats, ExamSubject };
 
 // ---------------------------------------------------------------------------
 // Admin / Internal — unfiltered accessors (all statuses)
@@ -104,12 +106,36 @@ export const getAllExams = unstable_cache(
   { revalidate: 60, tags: ["exams"] }
 );
 
+export async function getAdminExamSubjectJunctions(examId: string): Promise<ExamSubject[]> {
+  return contentRepo.getExamSubjectJunctions(examId);
+}
+
+export async function assignSubjectToExam(
+  examId: string,
+  subjectId: string,
+  displayOrder?: number,
+  weightage?: number
+): Promise<ExamSubject> {
+  return contentRepo.assignSubjectToExam(examId, subjectId, displayOrder, weightage);
+}
+
+export async function removeSubjectFromExam(examId: string, subjectId: string): Promise<boolean> {
+  return contentRepo.removeSubjectFromExam(examId, subjectId);
+}
+
+export async function updateExamSubjectOrder(
+  examId: string,
+  subjectOrder: { subjectId: string; displayOrder: number }[]
+): Promise<boolean> {
+  return contentRepo.updateExamSubjectOrder(examId, subjectOrder);
+}
+
 export async function getExamById(id: string): Promise<Exam | null> {
   return contentRepo.getExamById(id);
 }
 
 export async function getSubjectsByExamId(examId: string): Promise<Subject[]> {
-  return contentRepo.getAllSubjects(examId);
+  return contentRepo.getSubjectsForExam(examId);
 }
 
 export async function getSubjectById(subjectId: string): Promise<Subject | null> {
@@ -155,6 +181,40 @@ export const getAllPublishedTests = unstable_cache(
   ["content-all-published-tests"],
   { revalidate: 60, tags: ["tests"] }
 );
+
+/**
+ * Retrieves tests available to a student, scoped strictly to their active enrolled examinations.
+ * If the student is not enrolled in any examinations, returns an empty array.
+ * If filters.examId is provided, verifies student is enrolled in that specific exam.
+ */
+export async function getEnrolledTests(
+  studentId: string,
+  filters?: TestFilters
+): Promise<Test[]> {
+  if (!studentId) return [];
+
+  const activeEnrollments = await getStudentEnrollments(studentId, "ACTIVE");
+  if (activeEnrollments.length === 0) {
+    return [];
+  }
+
+  const enrolledExamIds = activeEnrollments.map((e) => e.examinationId.toLowerCase());
+
+  // If a specific exam was requested, ensure student is enrolled in it
+  if (filters?.examId) {
+    const isEnrolled = enrolledExamIds.includes(filters.examId.toLowerCase());
+    if (!isEnrolled) {
+      return [];
+    }
+    return contentRepo.getAllTests({ ...filters, status: "published" });
+  }
+
+  // Fetch all published tests and filter by enrolled exam IDs
+  const allTests = await contentRepo.getAllTests({ ...filters, status: "published" });
+  return allTests.filter((test) =>
+    enrolledExamIds.includes(test.examId.toLowerCase())
+  );
+}
 
 export const getAllSubjects = unstable_cache(
   async (examId?: string): Promise<Subject[]> => {
