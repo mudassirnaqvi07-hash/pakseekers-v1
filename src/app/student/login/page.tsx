@@ -17,9 +17,9 @@ export const metadata: Metadata = {
 export default async function StudentLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; verified?: string }>;
 }) {
-  const { callbackUrl } = await searchParams;
+  const { callbackUrl, verified } = await searchParams;
   const user = await getCurrentUser();
 
   if (user) {
@@ -49,6 +49,11 @@ export default async function StudentLoginPage({
 
       <Card className="shadow-sm">
         <CardContent className="p-6">
+          {verified === "true" && (
+            <div className="mb-4 p-3 rounded-lg bg-success/10 border border-success/20 text-success text-xs font-semibold flex items-center gap-2">
+              <span>✓ Email verified successfully! You can now sign in with your credentials.</span>
+            </div>
+          )}
           <StudentLoginForm callbackUrl={callbackUrl} />
         </CardContent>
       </Card>

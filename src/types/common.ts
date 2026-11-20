@@ -33,8 +33,14 @@ export type DeepPartial<T> = T extends object
  * if (!result.success) { showError(result.error); }
  */
 export type ActionResult<T = void> =
-  | { success: true; data: T }
-  | { success: false; error: string };
+  | { success: true; data: T; message?: string }
+  | {
+      success: false;
+      error: string;
+      isEmailUnverified?: boolean;
+      unverifiedEmail?: string;
+      retryAfterSeconds?: number;
+    };
 
 // ---------------------------------------------------------------------------
 // Pagination

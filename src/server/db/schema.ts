@@ -63,6 +63,9 @@ export interface UserDoc extends Document {
   role: UserRole;
   status?: UserStatus;
   passwordHash: string;
+  isEmailVerified?: boolean;
+  emailVerificationTokenHash?: string | null;
+  emailVerificationExpiresAt?: Date | string | null;
   profile: StudentProfile;
   lastLoginAt?: string;
   createdAt: string;
@@ -261,7 +264,7 @@ export function toDomainEntity<T>(doc: Record<string, unknown> | null | undefine
 export function toSafeUser(doc: Record<string, unknown> | null | undefined): SafeUser | null {
   if (!doc) return null;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { _id, passwordHash, ...rest } = doc;
+  const { _id, passwordHash, emailVerificationTokenHash, ...rest } = doc;
   const user = rest as SafeUser;
   if (user.profile) {
     user.phone = user.phone || user.profile.phone;
@@ -375,9 +378,13 @@ export async function ensureMongoIndexes(db: Db): Promise<{
   const set1 = await settingsCol.createIndex({ id: 1 }, { unique: true, name: "idx_settings_id_unique" });
   results.push({ collection: COLLECTIONS.SETTINGS, indexesCreated: [set1] });
 
-  // 13. Additional User Indexes for Student Management
+  // 13. Additional User Indexes for Student Management & Verification
   const u3 = await usersCol.createIndex({ role: 1, status: 1 }, { name: "idx_users_role_status" });
-  results[0].indexesCreated.push(u3);
+  const u4 = await usersCol.createIndex(
+    { emailVerificationTokenHash: 1 },
+    { sparse: true, name: "idx_users_verification_token" }
+  );
+  results[0].indexesCreated.push(u3, u4);
 
   return results;
 }
