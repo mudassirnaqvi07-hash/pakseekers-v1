@@ -9,9 +9,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertCircle, Eye, EyeOff, CheckCircle2, Check, X } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, CheckCircle2, Check, X, Mail, RefreshCw, ArrowRight } from "lucide-react";
 import { Button, Input, Select } from "@/components/ui";
-import { registerStudentAction } from "@/server/actions/auth-actions";
+import { registerStudentAction, resendVerificationAction } from "@/server/actions/auth-actions";
 
 export function StudentRegisterForm({
   callbackUrl,
@@ -21,6 +21,9 @@ export function StudentRegisterForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [resendPending, startResendTransition] = useTransition();
+  const [resendFeedback, setResendFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -109,16 +112,87 @@ export function StudentRegisterForm({
         if (!res.success) {
           setError(res.error);
         } else {
-          setSuccessMsg("Account created successfully! Preparing your student dashboard...");
-          setTimeout(() => {
-            window.location.href = res.data.redirectUrl;
-          }, 350);
+          setRegisteredEmail(res.data.email);
+          setSuccessMsg(res.data.message);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to create account. Please check your details and try again.");
       }
     });
   };
+
+  const handleResendFromSuccess = () => {
+    if (!registeredEmail || resendPending) return;
+    setResendFeedback(null);
+    startResendTransition(async () => {
+      try {
+        const res = await resendVerificationAction(registeredEmail);
+        if (res.success) {
+          setResendFeedback({ message: res.data.message, isError: false });
+        } else {
+          setResendFeedback({ message: res.error || "Failed to resend email.", isError: true });
+        }
+      } catch {
+        setResendFeedback({ message: "Unable to resend email at this time.", isError: true });
+      }
+    });
+  };
+
+  // If registration is complete, show the Verification Pending screen
+  if (registeredEmail) {
+    return (
+      <div className="flex flex-col items-center text-center py-6 px-2 animate-in fade-in zoom-in-95 duration-200">
+        <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
+          <Mail className="w-8 h-8" />
+        </div>
+        <h2 className="text-2xl font-extrabold text-text-primary tracking-tight">
+          Verify Your Email Address
+        </h2>
+        <p className="text-sm text-text-secondary mt-2">
+          We have sent a verification link to:
+        </p>
+        <div className="mt-2 inline-block px-3 py-1 bg-surface border border-border rounded-lg text-sm font-semibold text-primary">
+          {registeredEmail}
+        </div>
+        <p className="text-xs text-text-secondary mt-4 max-w-sm leading-relaxed">
+          Please check your inbox and click the verification button to activate your account.
+          Links expire in <strong>30 minutes</strong>. If you don&apos;t see the email, please check your spam or junk folder.
+        </p>
+
+        {resendFeedback && (
+          <div
+            className={`mt-4 p-2.5 rounded-lg text-xs font-medium max-w-sm ${
+              resendFeedback.isError
+                ? "bg-error/10 text-error border border-error/20"
+                : "bg-success/10 text-success border border-success/20"
+            }`}
+          >
+            {resendFeedback.message}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full max-w-xs">
+          <Link href="/student/login" className="w-full">
+            <Button size="md" className="w-full font-bold">
+              Go to Student Login
+              <ArrowRight className="w-4 h-4 ml-1 inline" />
+            </Button>
+          </Link>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="w-full font-semibold"
+            onClick={handleResendFromSuccess}
+            isLoading={resendPending}
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1" />
+            Resend Email
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form

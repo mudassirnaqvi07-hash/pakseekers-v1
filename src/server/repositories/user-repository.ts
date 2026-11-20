@@ -97,6 +97,9 @@ export async function createUser(input: {
   name: string;
   password: string;
   role?: UserRole;
+  isEmailVerified?: boolean;
+  emailVerificationTokenHash?: string | null;
+  emailVerificationExpiresAt?: Date | string | null;
   profile?: Partial<StudentProfile>;
 }): Promise<SafeUser> {
   const db = await getMongoDb();
@@ -112,12 +115,17 @@ export async function createUser(input: {
 
   const hashedPassword = await hashPassword(input.password);
   const now = new Date().toISOString();
+  const isStudent = (input.role || "student") === "student";
   const newUserDoc: UserDoc = {
     id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     email: normalizedEmail,
     name: input.name.trim(),
     role: input.role || "student",
     passwordHash: hashedPassword,
+    // By default, students must verify email unless explicitly set (e.g. seed data/admin)
+    isEmailVerified: input.isEmailVerified !== undefined ? input.isEmailVerified : !isStudent,
+    emailVerificationTokenHash: input.emailVerificationTokenHash || null,
+    emailVerificationExpiresAt: input.emailVerificationExpiresAt || null,
     profile: {
       educationLevel: input.profile?.educationLevel || "FSc Pre-Medical",
       institution: input.profile?.institution || "Not specified",
@@ -141,6 +149,93 @@ export async function createUser(input: {
   const safe = toSafeUser(newUserDoc);
   if (!safe) throw new Error("Failed to create sanitized user record.");
   return safe;
+}
+
+/**
+ * Sets or rotates the email verification token and expiration for a student account.
+ */
+export async function setEmailVerificationToken(
+  userId: string,
+  tokenHash: string,
+  expiresAt: Date
+): Promise<boolean> {
+  const db = await getMongoDb();
+  const res = await db.collection<UserDoc>(COLLECTIONS.USERS).updateOne(
+    { id: userId },
+    {
+      $set: {
+        emailVerificationTokenHash: tokenHash,
+        emailVerificationExpiresAt: expiresAt,
+        updatedAt: new Date().toISOString(),
+      },
+    }
+  );
+  return res.matchedCount > 0;
+}
+
+/**
+ * Atomically verifies a user's email using the provided SHA-256 token hash.
+ * Single-use: invalidates and clears the token upon verification.
+ */
+export async function verifyUserEmailWithToken(
+  tokenHash: string
+): Promise<{
+  success: boolean;
+  user?: SafeUser;
+  reason?: "invalid" | "expired" | "already_verified";
+}> {
+  if (!tokenHash || typeof tokenHash !== "string") {
+    return { success: false, reason: "invalid" };
+  }
+
+  const db = await getMongoDb();
+  const now = new Date();
+
+  // First, check if token hash exists in the database
+  const userWithToken = await db
+    .collection<UserDoc>(COLLECTIONS.USERS)
+    .findOne({ emailVerificationTokenHash: tokenHash });
+
+  if (!userWithToken) {
+    return { success: false, reason: "invalid" };
+  }
+
+  // Check token expiration
+  if (userWithToken.emailVerificationExpiresAt) {
+    const expiresAt = new Date(userWithToken.emailVerificationExpiresAt);
+    if (expiresAt < now) {
+      return { success: false, reason: "expired" };
+    }
+  }
+
+  // Atomic state transition: verify email and clear token
+  const result = await db.collection<UserDoc>(COLLECTIONS.USERS).findOneAndUpdate(
+    {
+      id: userWithToken.id,
+      emailVerificationTokenHash: tokenHash,
+    },
+    {
+      $set: {
+        isEmailVerified: true,
+        updatedAt: now.toISOString(),
+      },
+      $unset: {
+        emailVerificationTokenHash: "",
+        emailVerificationExpiresAt: "",
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  if (!result) {
+    return { success: false, reason: "invalid" };
+  }
+
+  const safe = toSafeUser(result);
+  return {
+    success: true,
+    user: safe || undefined,
+  };
 }
 
 export async function updateUserProfile(

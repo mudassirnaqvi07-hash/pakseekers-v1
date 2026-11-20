@@ -15,6 +15,8 @@ import {
   registerNewStudent,
   invalidateSession,
   updateProfile,
+  resendStudentVerificationEmail,
+  verifyEmailToken,
 } from "@/server/services/auth-service";
 import {
   setSessionCookie,
@@ -62,6 +64,9 @@ export async function loginStudentAction(
       return {
         success: false,
         error: authResult.failure.error,
+        isEmailUnverified: authResult.failure.isEmailUnverified,
+        unverifiedEmail: authResult.failure.unverifiedEmail,
+        retryAfterSeconds: authResult.failure.retryAfterSeconds,
       };
     }
 
@@ -97,7 +102,7 @@ export async function loginStudentAction(
 
 export async function registerStudentAction(
   rawInput: unknown
-): Promise<ActionResult<{ redirectUrl: string }>> {
+): Promise<ActionResult<{ email: string; emailSent: boolean; message: string }>> {
   const parsed = studentRegisterSchema.safeParse(rawInput);
   if (!parsed.success) {
     return {
@@ -114,7 +119,6 @@ export async function registerStudentAction(
     institution,
     targetExam,
     phone,
-    callbackUrl,
   } = parsed.data;
 
   try {
@@ -125,7 +129,7 @@ export async function registerStudentAction(
     }
     await clearSessionCookie();
 
-    // 2. Register via auth-service (strictly enforces role as student, hashes password)
+    // 2. Register via auth-service (creates student account with isEmailVerified: false, sends verification email)
     const result = await registerNewStudent({
       name,
       email,
@@ -138,18 +142,17 @@ export async function registerStudentAction(
       },
     });
 
-    // 3. Issue session cookie
-    await setSessionCookie(result.session.token);
-
-    safeRevalidate("/student/dashboard");
-    safeRevalidate("/");
-
-    const destination =
-      callbackUrl && isSafeStudentCallbackUrl(callbackUrl)
-        ? callbackUrl.trim()
-        : "/student/dashboard";
-
-    return { success: true, data: { redirectUrl: destination } };
+    // Important: Do NOT create or set a session cookie! The student must verify email first.
+    return {
+      success: true,
+      data: {
+        email: result.user.email,
+        emailSent: result.emailSent,
+        message: result.emailSent
+          ? "Account created successfully! We have sent a verification link to your email address."
+          : "Account created! Please check your email or request a verification link before signing in.",
+      },
+    };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     if (errorMsg.includes("already registered") || errorMsg.includes("already exists")) {
@@ -159,6 +162,68 @@ export async function registerStudentAction(
     return {
       success: false,
       error: "Unable to create account. Please try again.",
+    };
+  }
+}
+
+/**
+ * Resends a verification email for an unverified student account.
+ */
+export async function resendVerificationAction(
+  email: string
+): Promise<ActionResult<{ message: string }>> {
+  try {
+    const trimmed = (email || "").trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) {
+      return { success: false, error: "Please enter a valid email address." };
+    }
+
+    const result = await resendStudentVerificationEmail(trimmed);
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.message,
+        retryAfterSeconds: result.retryAfterSeconds,
+      };
+    }
+
+    return {
+      success: true,
+      data: { message: result.message },
+    };
+  } catch (err) {
+    console.error("Failed to resend verification email:", err);
+    return {
+      success: false,
+      error: "Unable to send verification email. Please try again shortly.",
+    };
+  }
+}
+
+/**
+ * Verifies a student email address with a received token.
+ */
+export async function verifyEmailTokenAction(
+  token: string
+): Promise<ActionResult<{ message: string }>> {
+  try {
+    const result = await verifyEmailToken(token);
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.message,
+      };
+    }
+
+    return {
+      success: true,
+      data: { message: result.message },
+    };
+  } catch (err) {
+    console.error("Failed to verify email token:", err);
+    return {
+      success: false,
+      error: "Unable to complete verification right now. Please try again.",
     };
   }
 }

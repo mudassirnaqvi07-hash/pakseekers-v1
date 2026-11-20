@@ -108,6 +108,16 @@ const envSchema = z
       .default("development"),
     APP_SECRET: z.string().optional(),
     ADMIN_ENTRY_PATH: z.string().default("/admin-gate"),
+    SMTP_HOST: z.string().default("smtp.gmail.com"),
+    SMTP_PORT: z.coerce.number().default(465),
+    SMTP_SECURE: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => val === true || val === "true" || val === "1")
+      .default(true),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    SMTP_FROM: z.string().default("PakSeekers <mudassirhassanreall@gmail.com>"),
+    APP_URL: z.string().default("http://localhost:3000"),
   })
   .transform((data) => {
     const rawUri =
