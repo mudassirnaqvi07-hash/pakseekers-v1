@@ -13,9 +13,12 @@
 
 import { MongoClient } from "mongodb";
 
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  "mongodb://syedmudassir0932_db_user:8pxv8SELRwlNtSfy@ac-2t2vsu4-shard-00-00.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-01.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-02.tttoqtk.mongodb.net:27017/pakseekers?ssl=true&replicaSet=atlas-uj7us8-shard-0&authSource=admin&retryWrites=true&w=majority";
+const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL;
+
+if (!MONGODB_URI) {
+  console.error("❌ MONGODB_URI or DATABASE_URL environment variable is required to run admin module tests.");
+  process.exit(1);
+}
 
 const client = new MongoClient(MONGODB_URI);
 

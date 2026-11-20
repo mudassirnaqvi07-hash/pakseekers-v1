@@ -23,7 +23,7 @@ All identified issues—including the mobile hotspot DNS query refusal (`querySr
 * **Root Cause:** When accessing the server over a Windows Mobile Hotspot adapter (`192.168.137.1`) or local router DNS, Node.js's c-ares DNS resolver attempts an SRV DNS query for `_mongodb._tcp.cluster0.tttoqtk.mongodb.net`. Windows Internet Connection Sharing (ICS) DNS proxies reject or drop SRV record queries by default.
 * **Resolution:**
   1. Configured direct replica set seedlist connection strings in `.env` and `.env.local`:
-     `mongodb://syedmudassir0932_db_user:8pxv8SELRwlNtSfy@ac-2t2vsu4-shard-00-00.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-01.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-02.tttoqtk.mongodb.net:27017/pakseekers?ssl=true&replicaSet=atlas-uj7us8-shard-0&authSource=admin&retryWrites=true&w=majority`
+     `mongodb://<username>:<password>@ac-2t2vsu4-shard-00-00.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-01.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-02.tttoqtk.mongodb.net:27017/pakseekers?ssl=true&replicaSet=atlas-uj7us8-shard-0&authSource=admin&retryWrites=true&w=majority`
   2. Enhanced `src/lib/config/env.ts` and `src/server/db/mongodb.ts` with automated URI normalization and public DNS resolver fallbacks (Google `8.8.8.8` & Cloudflare `1.1.1.1`).
   3. Direct connections bypass DNS SRV queries entirely, establishing immediate TLS sessions to MongoDB Atlas shards.
 * **Verification:** Confirmed HTTP 200 responses across `http://192.168.137.1:3000/`, `/exams`, `/student/login`, and `/student/register`.

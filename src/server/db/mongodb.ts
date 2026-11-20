@@ -8,16 +8,20 @@ import "server-only";
  * caching the connection promise across development hot reloads (HMR) to avoid
  * connection pool exhaustion.
  *
+ * Security:
+ * - Credentials must be supplied strictly via environment variables (MONGODB_URI / DATABASE_URL).
+ * - Target database selection is driven by MONGODB_DB.
+ * - ZERO hardcoded database connection strings, credentials, or fallback secrets.
+ * - Server-only: Protected against client-side bundling.
+ *
  * Layer: Data Access / Infrastructure Layer (server-only)
  */
 
 import { MongoClient, type Db, type MongoClientOptions } from "mongodb";
 import dns from "dns";
-import { env } from "@/lib/config/env";
+import { env, normalizeMongoUri } from "@/lib/config/env";
 
 // Ensure resilient DNS resolution for MongoDB Atlas across Windows Hotspots and local proxies.
-// Default to public DNS resolvers (Google 8.8.8.8, Cloudflare 1.1.1.1) to prevent
-// 'querySrv ECONNREFUSED' errors on Windows c-ares resolver.
 try {
   dns.setServers(["8.8.8.8", "1.1.1.1", "8.8.4.4"]);
   if (typeof dns.setDefaultResultOrder === "function") {
@@ -27,10 +31,7 @@ try {
   // If environment restricts setServers, proceed with platform defaults
 }
 
-const DEFAULT_DB_NAME = env.MONGODB_DB || "pakseekers";
-
-const DIRECT_REPLICA_SET_URI =
-  "mongodb://syedmudassir0932_db_user:8pxv8SELRwlNtSfy@ac-2t2vsu4-shard-00-00.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-01.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-02.tttoqtk.mongodb.net:27017/pakseekers?ssl=true&replicaSet=atlas-uj7us8-shard-0&authSource=admin&retryWrites=true&w=majority";
+const DEFAULT_DB_NAME = process.env.MONGODB_DB || env.MONGODB_DB || "pakseekers";
 
 const MONGODB_OPTIONS: MongoClientOptions = {
   maxPoolSize: 10,
@@ -47,51 +48,40 @@ declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-function normalizeMongoUri(rawUri: string | undefined): string {
-  if (!rawUri || typeof rawUri !== "string" || !rawUri.trim()) {
-    return DIRECT_REPLICA_SET_URI;
-  }
-
-  // Strip leading and trailing quotes (single, double, or backticks)
-  const trimmed = rawUri
-    .trim()
-    .replace(/^["'`]+|["'`]+$/g, "")
-    .trim();
-
-  // If URI references the PakSeekers cluster, ALWAYS convert to the direct replica set seedlist.
-  // This completely eliminates 'querySrv ECONNREFUSED' across Windows Hotspots (192.168.137.1)
-  // and local network adapters where Node.js c-ares DNS resolver cannot query SRV records.
-  if (trimmed.includes("tttoqtk.mongodb.net")) {
-    let db = DEFAULT_DB_NAME;
-    try {
-      const matchDb = trimmed.match(/tttoqtk\.mongodb\.net(?::\d+)?\/([^?#]+)/);
-      if (matchDb && matchDb[1]) {
-        db = matchDb[1];
-      }
-    } catch {
-      // Default to DEFAULT_DB_NAME
-    }
-    return `mongodb://syedmudassir0932_db_user:8pxv8SELRwlNtSfy@ac-2t2vsu4-shard-00-00.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-01.tttoqtk.mongodb.net:27017,ac-2t2vsu4-shard-00-02.tttoqtk.mongodb.net:27017/${db}?ssl=true&replicaSet=atlas-uj7us8-shard-0&authSource=admin&retryWrites=true&w=majority`;
-  }
-
-  return trimmed;
-}
-
+/**
+ * Resolves the active MongoDB connection URI from environment variables.
+ * Throws a descriptive configuration error if no URI is configured.
+ */
 function getMongoUri(): string {
-  const uri = env.MONGODB_URI || process.env.MONGODB_URI || process.env.DATABASE_URL;
-  if (!uri) {
+  const rawUri =
+    process.env.MONGODB_URI ||
+    env.MONGODB_URI ||
+    process.env.DATABASE_URL ||
+    process.env.DB_MONGODB_URI;
+
+  if (!rawUri || !rawUri.trim()) {
     throw new Error(
-      "MongoDB Atlas connection string is missing. Please ensure MONGODB_URI or DATABASE_URL is set in your environment."
+      "MongoDB Atlas connection string is missing. Please ensure MONGODB_URI or DATABASE_URL is set in your server environment."
     );
   }
-  return normalizeMongoUri(uri);
+
+  const activeDb = process.env.MONGODB_DB || env.MONGODB_DB || "pakseekers";
+  return normalizeMongoUri(rawUri, activeDb);
 }
 
 /**
- * Creates and connects a MongoClient with automated retry on transient network errors (ECONNRESET, ETIMEDOUT).
+ * Creates and connects a MongoClient with automated retry on transient network errors.
  */
 async function createConnectedClient(uri: string): Promise<MongoClient> {
-  const primaryUri = normalizeMongoUri(uri);
+  const activeDb = process.env.MONGODB_DB || env.MONGODB_DB || "pakseekers";
+  const primaryUri = normalizeMongoUri(uri, activeDb);
+
+  if (!primaryUri) {
+    throw new Error(
+      "MongoDB connection URI is invalid. Please check your MONGODB_URI environment variable."
+    );
+  }
+
   const maxRetries = 3;
   let lastError: unknown;
 
@@ -109,19 +99,6 @@ async function createConnectedClient(uri: string): Promise<MongoClient> {
       if (attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, attempt * 400));
       }
-    }
-  }
-
-  // Guaranteed Fallback: Direct PakSeekers Cluster0 replica set seedlist if different from primaryUri
-  if (primaryUri !== DIRECT_REPLICA_SET_URI) {
-    try {
-      console.log("Retrying with guaranteed direct replica set seedlist...");
-      const fallbackClient = new MongoClient(DIRECT_REPLICA_SET_URI, MONGODB_OPTIONS);
-      await fallbackClient.connect();
-      console.log("✓ Connected to MongoDB Atlas via guaranteed replica set fallback.");
-      return fallbackClient;
-    } catch (fbErr) {
-      console.warn("Guaranteed replica set fallback failed:", fbErr instanceof Error ? fbErr.message : fbErr);
     }
   }
 
@@ -171,14 +148,18 @@ export async function getMongoClient(): Promise<MongoClient> {
 
 /**
  * Retrieves a connected Db instance for the specified database name.
- * Defaults to the 'pakseekers' database.
+ * Target database is determined by:
+ *   1. Explicit `dbName` parameter (if passed)
+ *   2. `process.env.MONGODB_DB` environment variable
+ *   3. `DEFAULT_DB_NAME` ("pakseekers")
  *
- * @param dbName Optional database name override (defaults to 'pakseekers')
+ * @param dbName Optional database name override
  */
 export async function getMongoDb(dbName: string = DEFAULT_DB_NAME): Promise<Db> {
+  const targetDb = dbName || process.env.MONGODB_DB || env.MONGODB_DB || "pakseekers";
   try {
     const client = await getMongoClient();
-    return client.db(dbName);
+    return client.db(targetDb);
   } catch (err) {
     // Clear cached promise so next request attempts a fresh connection
     if (process.env.NODE_ENV === "development") {
@@ -201,8 +182,9 @@ export async function checkMongoHealth(dbName: string = DEFAULT_DB_NAME): Promis
   error?: string;
 }> {
   const startTime = Date.now();
+  const targetDb = dbName || process.env.MONGODB_DB || env.MONGODB_DB || "pakseekers";
   try {
-    const db = await getMongoDb(dbName);
+    const db = await getMongoDb(targetDb);
     const pingResult = await db.command({ ping: 1 });
     const latencyMs = Date.now() - startTime;
     const ok = pingResult.ok === 1;
@@ -216,7 +198,7 @@ export async function checkMongoHealth(dbName: string = DEFAULT_DB_NAME): Promis
     const latencyMs = Date.now() - startTime;
     return {
       ok: false,
-      database: dbName,
+      database: targetDb,
       latencyMs,
       error: error instanceof Error ? error.message : String(error),
     };
@@ -235,6 +217,8 @@ export async function closeMongoConnection(): Promise<void> {
     }
     if (process.env.NODE_ENV === "development") {
       global._mongoClientPromise = undefined;
+    } else {
+      clientPromise = null;
     }
   } catch (err) {
     console.warn("Error while closing MongoDB connection:", err instanceof Error ? err.message : err);
