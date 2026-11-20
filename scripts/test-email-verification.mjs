@@ -21,7 +21,7 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 
 const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL;
-const MONGODB_DB = process.env.MONGODB_DB || "pakseekers_preview";
+const MONGODB_DB = process.env.MONGODB_DB || "pakseekers_dev";
 
 if (!MONGODB_URI) {
   console.error("❌ MONGODB_URI or DATABASE_URL is required to run tests.");

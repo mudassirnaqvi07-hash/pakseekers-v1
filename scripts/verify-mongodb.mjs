@@ -34,7 +34,7 @@ try {
 
 // Resolve connection URI from environment
 const uri = process.env.MONGODB_URI || process.env.DATABASE_URL;
-const targetDbName = process.env.MONGODB_DB || "pakseekers";
+const targetDbName = process.env.MONGODB_DB || "pakseekers_dev";
 
 if (!uri) {
   console.error("❌ ERROR: MONGODB_URI or DATABASE_URL is not set in environment.");

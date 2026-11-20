@@ -29,7 +29,7 @@ try {
 }
 
 const uri = process.env.MONGODB_URI || process.env.DATABASE_URL;
-const dbName = process.env.MONGODB_DB || "pakseekers";
+const dbName = process.env.MONGODB_DB || "pakseekers_dev";
 
 if (!uri) {
   console.error("❌ ERROR: MONGODB_URI or DATABASE_URL is required.");

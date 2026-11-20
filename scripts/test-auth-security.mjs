@@ -36,7 +36,7 @@ try {
 }
 
 const uri = process.env.MONGODB_URI || process.env.DATABASE_URL;
-const dbName = process.env.MONGODB_DB || "pakseekers";
+const dbName = process.env.MONGODB_DB || "pakseekers_dev";
 
 if (!uri) {
   console.error("❌ ERROR: MONGODB_URI or DATABASE_URL not set in environment.");
@@ -188,7 +188,7 @@ async function runSecurityTests() {
     await db.collection("users").createIndex({ email: 1 }, { unique: true });
     await db.collection("users").createIndex({ id: 1 }, { unique: true });
 
-    // Existing demo credentials in Atlas (seed if missing in preview environment)
+    // Existing demo credentials in Atlas (seed if missing in development environment)
     let existingAdmin = await db.collection("users").findOne({ email: "admin@pakseekers.com" });
     if (!existingAdmin) {
       existingAdmin = {
