@@ -22,6 +22,7 @@ import {
   deleteUserSessions,
   verifyPassword,
   setEmailVerificationToken,
+  clearEmailVerificationToken,
   verifyUserEmailWithToken,
 } from "@/server/repositories/user-repository";
 import { getPlatformSettings } from "@/server/repositories/settings-repository";
@@ -165,7 +166,7 @@ export async function registerNewStudent(input: {
   name: string;
   password: string;
   profile?: Partial<StudentProfile>;
-}): Promise<{ user: SafeUser; emailSent: boolean }> {
+}): Promise<{ user: SafeUser; emailSent: boolean; isRetry?: boolean; message?: string }> {
   const settings = await getPlatformSettings();
   if (!settings.platform.allowRegistration) {
     throw new Error("Student registration is currently paused for platform maintenance. Please check back later.");
@@ -175,7 +176,42 @@ export async function registerNewStudent(input: {
 
   const existing = await findUserByEmail(normalizedEmail);
   if (existing) {
-    throw new Error("This email is already registered.");
+    // If the account is already verified, strictly reject duplicate registration
+    if (existing.isEmailVerified !== false) {
+      throw new Error("This email is already registered. Please log in to your account.");
+    }
+
+    // Existing pending (unverified) student account:
+    // Handle registration retry gracefully without duplicate account creation
+    const rawToken = generateVerificationToken();
+    const tokenHash = hashVerificationToken(rawToken);
+    const expirationMinutes = 30;
+    const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
+
+    // Update with fresh verification token (invalidates old token)
+    await setEmailVerificationToken(existing.id, tokenHash, expiresAt);
+
+    // Attempt to deliver the verification email
+    const emailResult = await sendVerificationEmail({
+      to: normalizedEmail,
+      name: input.name || existing.name,
+      token: rawToken,
+      expiresInMinutes: expirationMinutes,
+    });
+
+    if (!emailResult.success) {
+      // Invalidate unusable token if delivery failed
+      await clearEmailVerificationToken(existing.id);
+    }
+
+    return {
+      user: existing,
+      emailSent: emailResult.success,
+      isRetry: true,
+      message: emailResult.success
+        ? "An unverified account with this email was pending. A fresh verification link has been sent to your email."
+        : "An unverified account with this email exists, but we were unable to send the verification email. Please use the resend button below.",
+    };
   }
 
   // 1. Generate cryptographically secure verification token (32 bytes entropy)
@@ -196,7 +232,7 @@ export async function registerNewStudent(input: {
     profile: input.profile,
   });
 
-  // 3. Dispatch verification email via Gmail SMTP
+  // 3. Dispatch verification email via SMTP
   let emailSent = false;
   try {
     const emailResult = await sendVerificationEmail({
@@ -206,8 +242,13 @@ export async function registerNewStudent(input: {
       expiresInMinutes: expirationMinutes,
     });
     emailSent = emailResult.success;
+    if (!emailSent) {
+      // Invalidate unusable token if delivery failed
+      await clearEmailVerificationToken(newUser.id);
+    }
   } catch (emailErr) {
     console.error("Failed to send verification email on registration:", emailErr);
+    await clearEmailVerificationToken(newUser.id).catch(() => {});
   }
 
   return {
@@ -321,14 +362,23 @@ export async function resendStudentVerificationEmail(rawEmail: string): Promise<
   await setEmailVerificationToken(user.id, tokenHash, expiresAt);
 
   // 5. Send verification email via Gmail SMTP
-  await sendVerificationEmail({
+  const emailResult = await sendVerificationEmail({
     to: normalizedEmail,
     name: user.name,
     token: rawToken,
     expiresInMinutes: expirationMinutes,
   });
 
-  // Record rate limit hit
+  if (!emailResult.success) {
+    // Invalidate unusable token if delivery failed
+    await clearEmailVerificationToken(user.id);
+    return {
+      success: false,
+      message: emailResult.error || "Unable to send verification email at this moment. Please try again shortly.",
+    };
+  }
+
+  // Record rate limit hit on successful dispatch
   await recordFailedAttempt(rateLimitKey);
 
   return {
