@@ -11,6 +11,8 @@ import { ObjectId, type Db, type Document } from "mongodb";
 import type {
   ContentDefaultsSettings,
   ContentStatus,
+  EnrollmentSource,
+  EnrollmentStatus,
   ExaminationSettings,
   GeneralSettings,
   LessonStatus,
@@ -39,10 +41,12 @@ export const COLLECTIONS = {
   SESSIONS: "sessions",
   EXAMS: "exams",
   SUBJECTS: "subjects",
+  EXAM_SUBJECTS: "exam_subjects",
   TOPICS: "topics",
   QUESTIONS: "questions",
   TESTS: "tests",
   ATTEMPTS: "test_attempts",
+  ENROLLMENTS: "student_enrollments",
   SECTIONS: "sections",
   LESSONS: "lessons",
   QUESTION_REPORTS: "question_reports",
@@ -97,11 +101,39 @@ export interface SubjectDoc extends Document {
   _id?: ObjectId;
   id: string;
   examId: string;
+  examIds?: string[];
   title: string;
   description: string;
   icon?: string;
   totalTopics: number;
+  displayOrder?: number;
+  weightage?: number;
   status: ContentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExamSubjectDoc extends Document {
+  _id?: ObjectId;
+  id: string;
+  examId: string;
+  subjectId: string;
+  displayOrder: number;
+  weightage?: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentEnrollmentDoc extends Document {
+  _id?: ObjectId;
+  id: string;
+  studentId: string;
+  examinationId: string;
+  status: EnrollmentStatus;
+  enrollmentSource: EnrollmentSource;
+  enrolledAt: string;
+  removedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -385,6 +417,40 @@ export async function ensureMongoIndexes(db: Db): Promise<{
     { sparse: true, name: "idx_users_verification_token" }
   );
   results[0].indexesCreated.push(u3, u4);
+
+  // 14. Student Enrollments Indexes
+  const enrollmentsCol = db.collection(COLLECTIONS.ENROLLMENTS);
+  const enr1 = await enrollmentsCol.createIndex({ id: 1 }, { unique: true, name: "idx_enrollments_id_unique" });
+  const enr2 = await enrollmentsCol.createIndex(
+    { studentId: 1, examinationId: 1 },
+    { unique: true, name: "idx_enrollments_student_exam_unique" }
+  );
+  const enr3 = await enrollmentsCol.createIndex(
+    { studentId: 1, status: 1 },
+    { name: "idx_enrollments_student_status" }
+  );
+  const enr4 = await enrollmentsCol.createIndex(
+    { examinationId: 1, status: 1 },
+    { name: "idx_enrollments_exam_status" }
+  );
+  results.push({ collection: COLLECTIONS.ENROLLMENTS, indexesCreated: [enr1, enr2, enr3, enr4] });
+
+  // 15. Exam-Subjects Junction Indexes
+  const examSubjectsCol = db.collection(COLLECTIONS.EXAM_SUBJECTS);
+  const es1 = await examSubjectsCol.createIndex({ id: 1 }, { unique: true, name: "idx_exam_subjects_id_unique" });
+  const es2 = await examSubjectsCol.createIndex(
+    { examId: 1, subjectId: 1 },
+    { unique: true, name: "idx_exam_subjects_exam_subject_unique" }
+  );
+  const es3 = await examSubjectsCol.createIndex(
+    { examId: 1, displayOrder: 1 },
+    { name: "idx_exam_subjects_exam_order" }
+  );
+  const es4 = await examSubjectsCol.createIndex(
+    { subjectId: 1 },
+    { name: "idx_exam_subjects_subject" }
+  );
+  results.push({ collection: COLLECTIONS.EXAM_SUBJECTS, indexesCreated: [es1, es2, es3, es4] });
 
   return results;
 }
