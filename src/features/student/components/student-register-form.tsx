@@ -148,8 +148,8 @@ export function StudentRegisterForm({
         <h2 className="text-2xl font-extrabold text-text-primary tracking-tight">
           Verify Your Email Address
         </h2>
-        <p className="text-sm text-text-secondary mt-2">
-          We have sent a verification link to:
+        <p className="text-sm text-text-secondary mt-2 max-w-sm">
+          {successMsg || "We have sent a verification link to:"}
         </p>
         <div className="mt-2 inline-block px-3 py-1 bg-surface border border-border rounded-lg text-sm font-semibold text-primary">
           {registeredEmail}

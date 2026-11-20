@@ -10,6 +10,8 @@ import "server-only";
  * - Credentials loaded exclusively from server environment variables.
  * - Transport connection verification and error isolation.
  * - Zero client-side leakage (server-only).
+ * - Safe URL construction using the WHATWG URL API.
+ * - Production domain enforcement (fails safely if APP_URL missing in production).
  */
 
 import nodemailer, { type Transporter } from "nodemailer";
@@ -17,7 +19,15 @@ import { env } from "@/lib/config/env";
 
 let transporterInstance: Transporter | null = null;
 
-function getMailTransporter(): Transporter {
+/**
+ * Resets the cached transporter singleton.
+ * Primarily used in test suites or when SMTP credentials reload.
+ */
+export function resetMailTransporter(): void {
+  transporterInstance = null;
+}
+
+export function getMailTransporter(): Transporter {
   if (transporterInstance) {
     return transporterInstance;
   }
@@ -52,6 +62,127 @@ function getMailTransporter(): Transporter {
   });
 
   return transporterInstance;
+}
+
+/**
+ * Server-side diagnostic utility to verify SMTP connection using transporter.verify().
+ * Never exposes credentials in logs or output.
+ */
+export async function verifySmtpConnection(): Promise<{
+  success: boolean;
+  host: string;
+  port: number;
+  secure: boolean;
+  error?: string;
+  code?: string;
+}> {
+  const host = process.env.SMTP_HOST || env.SMTP_HOST || "smtp.gmail.com";
+  const port = Number(process.env.SMTP_PORT || env.SMTP_PORT || 465);
+  const secure =
+    process.env.SMTP_SECURE === "true" ||
+    process.env.SMTP_SECURE === "1" ||
+    env.SMTP_SECURE === true ||
+    port === 465;
+
+  try {
+    const transporter = getMailTransporter();
+    await transporter.verify();
+    return { success: true, host, port, secure };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorCode = (err as { code?: string })?.code;
+    console.error(`[SMTP Diagnostic] Connection verification failed (${errorCode || "UNKNOWN"}):`, errorMsg);
+    return {
+      success: false,
+      host,
+      port,
+      secure,
+      error: errorMsg,
+      code: errorCode,
+    };
+  }
+}
+
+/**
+ * Resolves the server-side base URL for account verification links.
+ *
+ * Rules:
+ * - In production: Requires a valid non-localhost APP_URL from server environment variables.
+ *   Fails safely (throws Error) if APP_URL is missing, malformed, or points to localhost/127.0.0.1.
+ * - In development/test: Uses APP_URL if provided; otherwise defaults to 'http://localhost:3000'.
+ *
+ * Never uses client-side NEXT_PUBLIC_ variables.
+ * Never hardcodes production domains.
+ */
+export function getVerificationBaseUrl(): string {
+  const isProduction = process.env.NODE_ENV === "production";
+  const rawUrl = (process.env.APP_URL || env.APP_URL || "").trim();
+
+  if (isProduction) {
+    if (!rawUrl) {
+      throw new Error(
+        "APP_URL environment variable is missing in production. Please configure APP_URL (e.g., https://your-domain.vercel.app) in your Vercel Project Environment Variables."
+      );
+    }
+
+    let parsedUrl: URL;
+    try {
+      // Ensure protocol for parsing
+      const withProtocol = rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
+        ? rawUrl
+        : `https://${rawUrl}`;
+      parsedUrl = new URL(withProtocol);
+    } catch {
+      throw new Error(
+        `Invalid APP_URL configured in production: '${rawUrl}'. Must be a valid absolute HTTP/HTTPS URL.`
+      );
+    }
+
+    // Fail safely if someone accidentally configured localhost or loopback in production
+    if (
+      parsedUrl.hostname === "localhost" ||
+      parsedUrl.hostname === "127.0.0.1" ||
+      parsedUrl.hostname.endsWith(".local")
+    ) {
+      throw new Error(
+        `APP_URL is configured to a local address ('${rawUrl}') in production. Please configure your actual production domain in Vercel environment variables.`
+      );
+    }
+
+    return parsedUrl.origin;
+  }
+
+  // Development & Test environments
+  if (!rawUrl) {
+    return "http://localhost:3000";
+  }
+
+  try {
+    const withProtocol = rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
+      ? rawUrl
+      : `http://${rawUrl}`;
+    return new URL(withProtocol).origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+}
+
+/**
+ * Constructs a fully qualified email verification URL using the WHATWG URL API.
+ * Ensures safe query parameter encoding and eliminates manual string concatenation risks.
+ *
+ * Path: /verify-email
+ * Param: token=<rawToken>
+ */
+export function buildVerificationUrl(token: string): string {
+  if (!token || typeof token !== "string" || !token.trim()) {
+    throw new Error("Verification token is required to build verification URL.");
+  }
+
+  const baseUrl = getVerificationBaseUrl();
+  const url = new URL("/verify-email", baseUrl);
+  url.searchParams.set("token", token.trim());
+  return url.toString();
 }
 
 /**
@@ -244,9 +375,19 @@ export async function sendVerificationEmail({
   token: string;
   expiresInMinutes?: number;
 }): Promise<SendVerificationEmailResult> {
+  let verificationUrl: string;
+  try {
+    verificationUrl = buildVerificationUrl(token);
+  } catch (urlErr) {
+    const errorMsg = urlErr instanceof Error ? urlErr.message : String(urlErr);
+    console.error("❌ Failed to construct email verification URL:", errorMsg);
+    return {
+      success: false,
+      error: "Unable to generate verification email due to server configuration. Please try again shortly.",
+    };
+  }
+
   const from = process.env.SMTP_FROM || env.SMTP_FROM || "PakSeekers <mudassirhassanreall@gmail.com>";
-  const baseUrl = (process.env.APP_URL || env.APP_URL || "http://localhost:3000").replace(/\/+$/, "");
-  const verificationUrl = `${baseUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
   const html = buildVerificationEmailHtml({
     name,
