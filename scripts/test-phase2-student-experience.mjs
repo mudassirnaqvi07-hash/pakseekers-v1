@@ -22,7 +22,7 @@ if (!uri) {
   process.exit(1);
 }
 
-const dbName = process.env.MONGODB_DB || "pakseekers";
+const dbName = process.env.MONGODB_DB || "pakseekers_dev";
 const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
 
 async function runPhase2Tests() {

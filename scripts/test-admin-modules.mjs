@@ -43,7 +43,8 @@ async function run() {
   try {
     await client.connect();
     console.log(" Connected to MongoDB Atlas successfully.\n");
-    const db = client.db("pakseekers");
+    const targetDb = process.env.MONGODB_DB || "pakseekers_dev";
+    const db = client.db(targetDb);
 
     // -------------------------------------------------------------------------
     // Module 1: Sections

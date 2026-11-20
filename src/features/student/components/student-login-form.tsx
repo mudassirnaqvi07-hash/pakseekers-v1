@@ -9,14 +9,17 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertCircle, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, CheckCircle2, Mail, RefreshCw } from "lucide-react";
 import { Button, Input } from "@/components/ui";
-import { loginStudentAction } from "@/server/actions/auth-actions";
+import { loginStudentAction, resendVerificationAction } from "@/server/actions/auth-actions";
 
 export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resendPending, startResendTransition] = useTransition();
+  const [resendMsg, setResendMsg] = useState<{ text: string; isError?: boolean } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const [email, setEmail] = useState("");
@@ -27,6 +30,9 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
     if (isPending || successMsg) return; // Prevent duplicate submissions
 
     setError(null);
+
+    setUnverifiedEmail(null);
+    setResendMsg(null);
 
     const form = e.currentTarget;
     const formData = new FormData(form);
@@ -47,6 +53,9 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
         });
         if (!res.success) {
           setError(res.error);
+          if (res.isEmailUnverified) {
+            setUnverifiedEmail(res.unverifiedEmail || emailVal);
+          }
         } else {
           setSuccessMsg("Authentication verified! Launching your student portal...");
           // Authoritative navigation via window.location.href ensures the fresh session cookie
@@ -57,6 +66,23 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to sign in. Please check your credentials and try again.");
+      }
+    });
+  };
+
+  const handleResendVerification = () => {
+    if (!unverifiedEmail || resendPending) return;
+    setResendMsg(null);
+    startResendTransition(async () => {
+      try {
+        const res = await resendVerificationAction(unverifiedEmail);
+        if (res.success) {
+          setResendMsg({ text: res.data.message, isError: false });
+        } else {
+          setResendMsg({ text: res.error || "Failed to resend verification email.", isError: true });
+        }
+      } catch {
+        setResendMsg({ text: "Unable to send verification email. Please try again.", isError: true });
       }
     });
   };
@@ -75,7 +101,7 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
       className="flex flex-col gap-4 w-full"
       noValidate
     >
-      {error && (
+      {error && !unverifiedEmail && (
         <div
           role="alert"
           aria-live="polite"
@@ -83,6 +109,55 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
         >
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {unverifiedEmail && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 text-xs flex flex-col gap-2.5 animate-in fade-in"
+        >
+          <div className="flex items-start gap-2.5">
+            <Mail className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-900">Email Verification Required</p>
+              <p className="text-amber-800/90 mt-0.5">
+                Your account ({unverifiedEmail}) has not been verified yet. Please check your inbox or spam folder for the verification link.
+              </p>
+            </div>
+          </div>
+
+          {resendMsg && (
+            <div
+              className={`p-2 rounded text-xs font-medium ${
+                resendMsg.isError
+                  ? "bg-error/15 text-error"
+                  : "bg-success/15 text-success"
+              }`}
+            >
+              {resendMsg.text}
+            </div>
+          )}
+
+          <div className="pt-1 flex items-center justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleResendVerification}
+              isLoading={resendPending}
+              className="text-amber-900 border-amber-300 hover:bg-amber-100/50 text-xs"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Resend Verification Email
+            </Button>
+            <Link
+              href="/verify-email"
+              className="text-xs text-primary hover:underline font-semibold"
+            >
+              Verification help &rarr;
+            </Link>
+          </div>
         </div>
       )}
 

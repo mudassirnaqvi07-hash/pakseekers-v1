@@ -36,7 +36,7 @@ try {
 }
 
 const uri = process.env.MONGODB_URI || process.env.DATABASE_URL;
-const dbName = process.env.MONGODB_DB || "pakseekers";
+const dbName = process.env.MONGODB_DB || "pakseekers_dev";
 
 if (!uri) {
   console.error("❌ ERROR: MONGODB_URI or DATABASE_URL not set in environment.");
@@ -183,9 +183,43 @@ async function runSecurityTests() {
     assert(!verifyPassword("", hashed), "Empty password verification fails safely");
     assert(!verifyPassword(testPlainPassword, "tampered-hash"), "Malformed hash verification fails safely");
 
-    // Existing demo credentials in Atlas
-    const existingAdmin = await db.collection("users").findOne({ email: "admin@pakseekers.com" });
-    const existingStudent = await db.collection("users").findOne({ email: "student@pakseekers.com" });
+    // Clean up any stale test accounts from previous interrupted runs before ensuring unique index
+    await db.collection("users").deleteMany({ email: { $regex: /example\.com/i } });
+    await db.collection("users").createIndex({ email: 1 }, { unique: true });
+    await db.collection("users").createIndex({ id: 1 }, { unique: true });
+
+    // Existing demo credentials in Atlas (seed if missing in development environment)
+    let existingAdmin = await db.collection("users").findOne({ email: "admin@pakseekers.com" });
+    if (!existingAdmin) {
+      existingAdmin = {
+        id: "admin-seed-1",
+        email: "admin@pakseekers.com",
+        name: "Admin User",
+        role: "admin",
+        passwordHash: hashPassword("admin123"),
+        isEmailVerified: true,
+        profile: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await db.collection("users").insertOne(existingAdmin);
+    }
+
+    let existingStudent = await db.collection("users").findOne({ email: "student@pakseekers.com" });
+    if (!existingStudent) {
+      existingStudent = {
+        id: "student-seed-1",
+        email: "student@pakseekers.com",
+        name: "Student User",
+        role: "student",
+        passwordHash: hashPassword("student123"),
+        isEmailVerified: true,
+        profile: { educationLevel: "FSc Pre-Medical", institution: "KIPS", targetExam: "MDCAT" },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await db.collection("users").insertOne(existingStudent);
+    }
 
     assert(
       existingAdmin && verifyPassword("admin123", existingAdmin.passwordHash),

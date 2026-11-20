@@ -23,6 +23,9 @@ export interface User {
   role: UserRole;
   status?: UserStatus;
   passwordHash: string;
+  isEmailVerified?: boolean;
+  emailVerificationTokenHash?: string | null;
+  emailVerificationExpiresAt?: string | null;
   profile: StudentProfile;
   phone?: string;
   targetExam?: string;
@@ -34,9 +37,9 @@ export interface User {
 }
 
 /**
- * Sanitized user object without sensitive credentials (passwordHash), safe for presentation.
+ * Sanitized user object without sensitive credentials (passwordHash, verification token hashes), safe for presentation.
  */
-export type SafeUser = Omit<User, "passwordHash">;
+export type SafeUser = Omit<User, "passwordHash" | "emailVerificationTokenHash">;
 
 export interface UserSession {
   token: string;
