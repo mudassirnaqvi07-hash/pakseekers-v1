@@ -25,7 +25,7 @@ import {
   hashPasswordSync,
   verifyPasswordSync,
 } from "@/server/auth/password";
-import { generateSessionToken, hashSessionToken } from "@/server/auth/tokens";
+import { generateSessionToken, hashSessionToken, verifyOtpHash } from "@/server/auth/tokens";
 import type {
   SafeUser,
   User,
@@ -98,6 +98,10 @@ export async function createUser(input: {
   password: string;
   role?: UserRole;
   isEmailVerified?: boolean;
+  otpCodeHash?: string | null;
+  otpExpiresAt?: Date | string | null;
+  otpLastSentAt?: Date | string | null;
+  otpAttempts?: number;
   emailVerificationTokenHash?: string | null;
   emailVerificationExpiresAt?: Date | string | null;
   profile?: Partial<StudentProfile>;
@@ -124,6 +128,10 @@ export async function createUser(input: {
     passwordHash: hashedPassword,
     // By default, students must verify email unless explicitly set (e.g. seed data/admin)
     isEmailVerified: input.isEmailVerified !== undefined ? input.isEmailVerified : !isStudent,
+    otpCodeHash: input.otpCodeHash || null,
+    otpExpiresAt: input.otpExpiresAt || null,
+    otpLastSentAt: input.otpLastSentAt || null,
+    otpAttempts: input.otpAttempts ?? 0,
     emailVerificationTokenHash: input.emailVerificationTokenHash || null,
     emailVerificationExpiresAt: input.emailVerificationExpiresAt || null,
     profile: {
@@ -149,6 +157,163 @@ export async function createUser(input: {
   const safe = toSafeUser(newUserDoc);
   if (!safe) throw new Error("Failed to create sanitized user record.");
   return safe;
+}
+
+/**
+ * Sets or rotates the 6-digit verification OTP and expiration for a student account.
+ */
+export async function setUserOtp(
+  userId: string,
+  otpHash: string,
+  expiresAt: Date,
+  lastSentAt: Date = new Date()
+): Promise<boolean> {
+  const db = await getMongoDb();
+  const res = await db.collection<UserDoc>(COLLECTIONS.USERS).updateOne(
+    { id: userId },
+    {
+      $set: {
+        otpCodeHash: otpHash,
+        otpExpiresAt: expiresAt,
+        otpLastSentAt: lastSentAt,
+        otpAttempts: 0,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+    }
+  );
+  return res.matchedCount > 0;
+}
+
+/**
+ * Clears the verification OTP and expiration for a student account.
+ */
+export async function clearUserOtp(userId: string): Promise<boolean> {
+  const db = await getMongoDb();
+  const res = await db.collection<UserDoc>(COLLECTIONS.USERS).updateOne(
+    { id: userId },
+    {
+      $set: {
+        otpCodeHash: null,
+        otpExpiresAt: null,
+        otpAttempts: 0,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+    }
+  );
+  return res.matchedCount > 0;
+}
+
+/**
+ * Atomically verifies a user's email using the provided 6-digit OTP code.
+ *
+ * Enforces:
+ * - Constant-time cryptographic comparison
+ * - Expiration check (10 minutes)
+ * - Maximum failed attempt enforcement (5 attempts max before locking OTP)
+ * - Single-use atomic invalidation
+ */
+export async function verifyUserEmailWithOtp(
+  email: string,
+  rawOtp: string
+): Promise<{
+  success: boolean;
+  user?: SafeUser;
+  reason?: "invalid" | "expired" | "max_attempts" | "not_found" | "already_verified";
+  remainingAttempts?: number;
+}> {
+  if (!email || !rawOtp || !/^\d{6}$/.test(rawOtp.trim())) {
+    return { success: false, reason: "invalid" };
+  }
+
+  const db = await getMongoDb();
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await db
+    .collection<UserDoc>(COLLECTIONS.USERS)
+    .findOne({ email: normalizedEmail });
+
+  if (!user) {
+    return { success: false, reason: "not_found" };
+  }
+
+  if (user.isEmailVerified === true) {
+    const safe = toSafeUser(user);
+    return { success: true, reason: "already_verified", user: safe || undefined };
+  }
+
+  if (!user.otpCodeHash || !user.otpExpiresAt) {
+    return { success: false, reason: "invalid" };
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(user.otpExpiresAt);
+  if (expiresAt < now) {
+    await clearUserOtp(user.id);
+    return { success: false, reason: "expired" };
+  }
+
+  const currentAttempts = user.otpAttempts || 0;
+  if (currentAttempts >= 5) {
+    await clearUserOtp(user.id);
+    return { success: false, reason: "max_attempts", remainingAttempts: 0 };
+  }
+
+  const isMatch = verifyOtpHash(rawOtp.trim(), user.otpCodeHash);
+  if (!isMatch) {
+    const newAttempts = currentAttempts + 1;
+    if (newAttempts >= 5) {
+      await clearUserOtp(user.id);
+      return { success: false, reason: "max_attempts", remainingAttempts: 0 };
+    }
+    await db.collection<UserDoc>(COLLECTIONS.USERS).updateOne(
+      { id: user.id },
+      {
+        $inc: { otpAttempts: 1 },
+        $set: { updatedAt: now.toISOString() },
+      }
+    );
+    return {
+      success: false,
+      reason: "invalid",
+      remainingAttempts: Math.max(0, 5 - newAttempts),
+    };
+  }
+
+  // Atomic state transition: verify email and clear OTP
+  const result = await db.collection<UserDoc>(COLLECTIONS.USERS).findOneAndUpdate(
+    {
+      id: user.id,
+      otpCodeHash: user.otpCodeHash,
+    },
+    {
+      $set: {
+        isEmailVerified: true,
+        updatedAt: now.toISOString(),
+      },
+      $unset: {
+        otpCodeHash: "",
+        otpExpiresAt: "",
+        otpLastSentAt: "",
+        otpAttempts: "",
+        emailVerificationTokenHash: "",
+        emailVerificationExpiresAt: "",
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  if (!result) {
+    return { success: false, reason: "invalid" };
+  }
+
+  const safe = toSafeUser(result);
+  return {
+    success: true,
+    user: safe || undefined,
+  };
 }
 
 /**

@@ -22,6 +22,33 @@ export type TestDifficulty = QuestionDifficulty | "mixed";
 
 export type TestStatus = "draft" | "published" | "archived";
 
+export type EnrollmentStatus = "ACTIVE" | "REMOVED";
+
+export type EnrollmentSource = "FREE_SELECTION" | "SUBSCRIPTION" | "ADMIN_GRANTED";
+
+export interface StudentEnrollment {
+  id: string;
+  studentId: string;
+  examinationId: string;
+  status: EnrollmentStatus;
+  enrollmentSource: EnrollmentSource;
+  enrolledAt: string;
+  removedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExamSubject {
+  id: string;
+  examId: string;
+  subjectId: string;
+  displayOrder: number;
+  weightage?: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Option Model
 // ---------------------------------------------------------------------------

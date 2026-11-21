@@ -70,6 +70,10 @@ export interface UserDoc extends Document {
   isEmailVerified?: boolean;
   emailVerificationTokenHash?: string | null;
   emailVerificationExpiresAt?: Date | string | null;
+  otpCodeHash?: string | null;
+  otpExpiresAt?: Date | string | null;
+  otpLastSentAt?: Date | string | null;
+  otpAttempts?: number;
   profile: StudentProfile;
   lastLoginAt?: string;
   createdAt: string;
@@ -296,7 +300,7 @@ export function toDomainEntity<T>(doc: Record<string, unknown> | null | undefine
 export function toSafeUser(doc: Record<string, unknown> | null | undefined): SafeUser | null {
   if (!doc) return null;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { _id, passwordHash, emailVerificationTokenHash, ...rest } = doc;
+  const { _id, passwordHash, emailVerificationTokenHash, otpCodeHash, ...rest } = doc;
   const user = rest as SafeUser;
   if (user.profile) {
     user.phone = user.phone || user.profile.phone;

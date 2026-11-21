@@ -21,9 +21,10 @@ import {
   deleteSession,
   deleteUserSessions,
   verifyPassword,
-  setEmailVerificationToken,
-  clearEmailVerificationToken,
   verifyUserEmailWithToken,
+  setUserOtp,
+  clearUserOtp,
+  verifyUserEmailWithOtp,
 } from "@/server/repositories/user-repository";
 import { getPlatformSettings } from "@/server/repositories/settings-repository";
 import {
@@ -32,8 +33,9 @@ import {
   resetRateLimit,
 } from "@/server/auth/rate-limiter";
 import {
-  generateVerificationToken,
   hashVerificationToken,
+  generateOtp,
+  hashOtp,
 } from "@/server/auth/tokens";
 import { sendVerificationEmail } from "@/server/services/email-service";
 import type {
@@ -122,7 +124,7 @@ export async function authenticateCredentials(
     return {
       success: false,
       failure: {
-        error: "Your email address is not verified yet. Please check your inbox for the verification link.",
+        error: "Your email address is not verified yet. Please enter the 6-digit verification code sent to your email.",
         isEmailUnverified: true,
         unverifiedEmail: user.email,
       },
@@ -158,7 +160,7 @@ export async function authenticateCredentials(
 
 /**
  * Registers a new student account with pending email verification.
- * Dispatches a branded verification email via Gmail SMTP.
+ * Generates a cryptographically secure 6-digit numeric OTP and delivers via Gmail SMTP.
  * Does NOT create an authenticated session (unverified students must verify first).
  */
 export async function registerNewStudent(input: {
@@ -182,26 +184,25 @@ export async function registerNewStudent(input: {
     }
 
     // Existing pending (unverified) student account:
-    // Handle registration retry gracefully without duplicate account creation
-    const rawToken = generateVerificationToken();
-    const tokenHash = hashVerificationToken(rawToken);
-    const expirationMinutes = 30;
+    // Generate fresh 6-digit OTP (10 minute expiry) and rotate
+    const rawOtp = generateOtp();
+    const otpHash = hashOtp(rawOtp);
+    const expirationMinutes = 10;
     const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
+    const now = new Date();
 
-    // Update with fresh verification token (invalidates old token)
-    await setEmailVerificationToken(existing.id, tokenHash, expiresAt);
+    await setUserOtp(existing.id, otpHash, expiresAt, now);
 
-    // Attempt to deliver the verification email
+    // Deliver OTP email
     const emailResult = await sendVerificationEmail({
       to: normalizedEmail,
       name: input.name || existing.name,
-      token: rawToken,
+      otp: rawOtp,
       expiresInMinutes: expirationMinutes,
     });
 
     if (!emailResult.success) {
-      // Invalidate unusable token if delivery failed
-      await clearEmailVerificationToken(existing.id);
+      await clearUserOtp(existing.id);
     }
 
     return {
@@ -209,46 +210,48 @@ export async function registerNewStudent(input: {
       emailSent: emailResult.success,
       isRetry: true,
       message: emailResult.success
-        ? "An unverified account with this email was pending. A fresh verification link has been sent to your email."
-        : "An unverified account with this email exists, but we were unable to send the verification email. Please use the resend button below.",
+        ? "We found your pending unverified account. A fresh 6-digit verification code has been sent to your email."
+        : "An unverified account with this email exists, but we were unable to send the verification code. Please use the resend button below.",
     };
   }
 
-  // 1. Generate cryptographically secure verification token (32 bytes entropy)
-  const rawToken = generateVerificationToken();
-  const tokenHash = hashVerificationToken(rawToken);
-  const expirationMinutes = 30;
+  // 1. Generate cryptographically secure 6-digit OTP
+  const rawOtp = generateOtp();
+  const otpHash = hashOtp(rawOtp);
+  const expirationMinutes = 10;
   const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
+  const now = new Date();
 
-  // 2. Create student account with isEmailVerified = false and hashed token
+  // 2. Create student account with isEmailVerified = false and hashed OTP
   const newUser = await createUser({
     name: input.name,
     email: normalizedEmail,
     password: input.password,
     role: "student",
     isEmailVerified: false,
-    emailVerificationTokenHash: tokenHash,
-    emailVerificationExpiresAt: expiresAt,
+    otpCodeHash: otpHash,
+    otpExpiresAt: expiresAt,
+    otpLastSentAt: now,
+    otpAttempts: 0,
     profile: input.profile,
   });
 
-  // 3. Dispatch verification email via SMTP
+  // 3. Dispatch verification email with OTP via SMTP
   let emailSent = false;
   try {
     const emailResult = await sendVerificationEmail({
       to: normalizedEmail,
       name: input.name,
-      token: rawToken,
+      otp: rawOtp,
       expiresInMinutes: expirationMinutes,
     });
     emailSent = emailResult.success;
     if (!emailSent) {
-      // Invalidate unusable token if delivery failed
-      await clearEmailVerificationToken(newUser.id);
+      await clearUserOtp(newUser.id);
     }
   } catch (emailErr) {
     console.error("Failed to send verification email on registration:", emailErr);
-    await clearEmailVerificationToken(newUser.id).catch(() => {});
+    await clearUserOtp(newUser.id).catch(() => {});
   }
 
   return {
@@ -258,8 +261,84 @@ export async function registerNewStudent(input: {
 }
 
 /**
- * Verifies a student email address using the received verification token.
- * Single-use: atomically sets isEmailVerified = true and clears the token.
+ * Verifies a student email address using a 6-digit OTP code.
+ * Single-use: atomically sets isEmailVerified = true and clears the OTP.
+ */
+export async function verifyStudentOtp(
+  email: string,
+  rawOtp: string
+): Promise<{
+  success: boolean;
+  message: string;
+  user?: SafeUser;
+  reason?: "invalid" | "expired" | "max_attempts" | "not_found" | "already_verified";
+  remainingAttempts?: number;
+}> {
+  if (!email || !email.includes("@")) {
+    return {
+      success: false,
+      reason: "invalid",
+      message: "Please provide a valid email address.",
+    };
+  }
+
+  const trimmedOtp = (rawOtp || "").trim();
+  if (!trimmedOtp || !/^\d{6}$/.test(trimmedOtp)) {
+    return {
+      success: false,
+      reason: "invalid",
+      message: "Please enter a valid 6-digit numeric verification code.",
+    };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const result = await verifyUserEmailWithOtp(normalizedEmail, trimmedOtp);
+
+  if (!result.success) {
+    if (result.reason === "expired") {
+      return {
+        success: false,
+        reason: "expired",
+        message: "Your verification code has expired (codes are valid for 10 minutes). Please request a new code.",
+      };
+    }
+    if (result.reason === "max_attempts") {
+      return {
+        success: false,
+        reason: "max_attempts",
+        message: "Too many incorrect attempts. This code has been invalidated for security. Please request a new code.",
+      };
+    }
+    if (result.reason === "not_found") {
+      return {
+        success: false,
+        reason: "not_found",
+        message: "No account found with this email. Please check your email or create an account.",
+      };
+    }
+    const attemptsText =
+      result.remainingAttempts !== undefined && result.remainingAttempts > 0
+        ? ` (${result.remainingAttempts} attempt${result.remainingAttempts > 1 ? "s" : ""} remaining)`
+        : "";
+    return {
+      success: false,
+      reason: "invalid",
+      remainingAttempts: result.remainingAttempts,
+      message: `Invalid verification code${attemptsText}. Please check the code sent to your email.`,
+    };
+  }
+
+  return {
+    success: true,
+    message: result.reason === "already_verified"
+      ? "Your account is already verified! You can log in directly."
+      : "Your email has been verified successfully! You can now log in to your student account.",
+    user: result.user,
+  };
+}
+
+/**
+ * Backward-compatible helper for legacy token verification requests.
  */
 export async function verifyEmailToken(rawToken: string): Promise<{
   success: boolean;
@@ -271,7 +350,7 @@ export async function verifyEmailToken(rawToken: string): Promise<{
     return {
       success: false,
       reason: "invalid",
-      message: "The verification link is invalid or malformed.",
+      message: "Verification links have been replaced by 6-digit codes. Please enter the 6-digit code sent to your email.",
     };
   }
 
@@ -279,17 +358,10 @@ export async function verifyEmailToken(rawToken: string): Promise<{
   const result = await verifyUserEmailWithToken(tokenHash);
 
   if (!result.success) {
-    if (result.reason === "expired") {
-      return {
-        success: false,
-        reason: "expired",
-        message: "Your verification link has expired. Please request a new verification email.",
-      };
-    }
     return {
       success: false,
-      reason: "invalid",
-      message: "This verification link is invalid or has already been used.",
+      reason: result.reason || "invalid",
+      message: "This link is no longer valid. Please enter the 6-digit verification code sent to your email.",
     };
   }
 
@@ -301,14 +373,15 @@ export async function verifyEmailToken(rawToken: string): Promise<{
 }
 
 /**
- * Requests a new verification email for an unverified student account.
- * Rate-limited (1 request per 60s) with account enumeration defense.
+ * Requests a new 6-digit verification OTP for an unverified student account.
+ * Enforces 60-second cooldown between requests and prevents account enumeration.
  */
-export async function resendStudentVerificationEmail(rawEmail: string): Promise<{
+export async function resendStudentVerificationOtp(rawEmail: string): Promise<{
   success: boolean;
   message: string;
   isRateLimited?: boolean;
   retryAfterSeconds?: number;
+  cooldownSeconds?: number;
 }> {
   if (!rawEmail || typeof rawEmail !== "string") {
     return {
@@ -318,73 +391,101 @@ export async function resendStudentVerificationEmail(rawEmail: string): Promise<
   }
 
   const normalizedEmail = rawEmail.trim().toLowerCase();
-  const rateLimitKey = `resend-verify:${normalizedEmail}`;
+  const rateLimitKey = `resend-otp:${normalizedEmail}`;
 
-  // 1. Rate limiting: 1 request per 60 seconds per email
+  // 1. Rate limiting check (1 request per 60 seconds)
   const rateCheck = await checkRateLimit(rateLimitKey);
   if (!rateCheck.allowed) {
     return {
       success: false,
       isRateLimited: true,
       retryAfterSeconds: rateCheck.retryAfterSeconds,
-      message: `Please wait ${rateCheck.retryAfterSeconds || 60} seconds before requesting another verification email.`,
+      message: `Please wait ${rateCheck.retryAfterSeconds || 60} seconds before requesting another verification code.`,
     };
   }
 
   // 2. Fetch user
   const user = await findUserWithPasswordByEmail(normalizedEmail);
 
-  // Defense against account enumeration:
-  // Return identical generic response even if user doesn't exist
+  // Account enumeration defense:
+  // Return identical generic response if user doesn't exist or isn't a student
   if (!user || user.role !== "student") {
     await recordFailedAttempt(rateLimitKey);
     return {
       success: true,
-      message: "If an unverified account is registered with this email, a new verification link has been sent.",
+      message: "If an unverified account is registered with this email, a new verification code has been sent.",
+      cooldownSeconds: 60,
     };
   }
 
-  // If already verified, inform user
+  // If already verified
   if (user.isEmailVerified === true) {
     return {
       success: true,
       message: "This account has already been verified. You can log in directly.",
+      cooldownSeconds: 0,
     };
   }
 
-  // 3. Generate new verification token
-  const rawToken = generateVerificationToken();
-  const tokenHash = hashVerificationToken(rawToken);
-  const expirationMinutes = 30;
+  // Check DB-level cooldown if user has otpLastSentAt
+  if (user.otpLastSentAt) {
+    const elapsedMs = Date.now() - new Date(user.otpLastSentAt).getTime();
+    if (elapsedMs < 60000) {
+      const remainingSec = Math.ceil((60000 - elapsedMs) / 1000);
+      return {
+        success: false,
+        isRateLimited: true,
+        retryAfterSeconds: remainingSec,
+        message: `Please wait ${remainingSec} seconds before requesting another code.`,
+      };
+    }
+  }
+
+  // 3. Generate new 6-digit OTP
+  const rawOtp = generateOtp();
+  const otpHash = hashOtp(rawOtp);
+  const expirationMinutes = 10;
   const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
+  const now = new Date();
 
-  // 4. Update user record with new token and expiry
-  await setEmailVerificationToken(user.id, tokenHash, expiresAt);
+  // 4. Update user record (invalidates previous OTP)
+  await setUserOtp(user.id, otpHash, expiresAt, now);
 
-  // 5. Send verification email via Gmail SMTP
+  // 5. Send OTP email via Gmail SMTP
   const emailResult = await sendVerificationEmail({
     to: normalizedEmail,
     name: user.name,
-    token: rawToken,
+    otp: rawOtp,
     expiresInMinutes: expirationMinutes,
   });
 
   if (!emailResult.success) {
-    // Invalidate unusable token if delivery failed
-    await clearEmailVerificationToken(user.id);
+    await clearUserOtp(user.id);
     return {
       success: false,
-      message: emailResult.error || "Unable to send verification email at this moment. Please try again shortly.",
+      message: emailResult.error || "Unable to send verification code at this moment. Please try again shortly.",
     };
   }
 
-  // Record rate limit hit on successful dispatch
   await recordFailedAttempt(rateLimitKey);
 
   return {
     success: true,
-    message: "A new verification email has been sent. Please check your inbox and spam folder.",
+    message: "A new 6-digit verification code has been sent to your email. It will expire in 10 minutes.",
+    cooldownSeconds: 60,
   };
+}
+
+/**
+ * Backward-compatible alias for resendStudentVerificationOtp.
+ */
+export async function resendStudentVerificationEmail(rawEmail: string): Promise<{
+  success: boolean;
+  message: string;
+  isRateLimited?: boolean;
+  retryAfterSeconds?: number;
+}> {
+  return resendStudentVerificationOtp(rawEmail);
 }
 
 /**

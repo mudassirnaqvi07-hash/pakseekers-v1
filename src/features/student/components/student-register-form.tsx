@@ -112,6 +112,10 @@ export function StudentRegisterForm({
         if (!res.success) {
           setError(res.error);
         } else {
+          if (res.data.redirectUrl) {
+            window.location.href = res.data.redirectUrl;
+            return;
+          }
           setRegisteredEmail(res.data.email);
           setSuccessMsg(res.data.message);
         }
@@ -149,14 +153,14 @@ export function StudentRegisterForm({
           Verify Your Email Address
         </h2>
         <p className="text-sm text-text-secondary mt-2 max-w-sm">
-          {successMsg || "We have sent a verification link to:"}
+          {successMsg || "We have sent a 6-digit verification code to:"}
         </p>
         <div className="mt-2 inline-block px-3 py-1 bg-surface border border-border rounded-lg text-sm font-semibold text-primary">
           {registeredEmail}
         </div>
         <p className="text-xs text-text-secondary mt-4 max-w-sm leading-relaxed">
-          Please check your inbox and click the verification button to activate your account.
-          Links expire in <strong>30 minutes</strong>. If you don&apos;t see the email, please check your spam or junk folder.
+          Please check your inbox and enter the 6-digit code on the verification screen to activate your account.
+          Verification codes expire in <strong>10 minutes</strong>. If you don&apos;t see the email, please check your spam folder.
         </p>
 
         {resendFeedback && (
@@ -172,9 +176,9 @@ export function StudentRegisterForm({
         )}
 
         <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full max-w-xs">
-          <Link href="/student/login" className="w-full">
+          <Link href={`/verify-email?email=${encodeURIComponent(registeredEmail)}`} className="w-full">
             <Button size="md" className="w-full font-bold">
-              Go to Student Login
+              Enter 6-Digit Code
               <ArrowRight className="w-4 h-4 ml-1 inline" />
             </Button>
           </Link>
@@ -187,7 +191,7 @@ export function StudentRegisterForm({
             isLoading={resendPending}
           >
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
-            Resend Email
+            Resend Code
           </Button>
         </div>
       </div>

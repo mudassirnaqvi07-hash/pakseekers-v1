@@ -78,6 +78,31 @@ export const studentProfileSchema = z.object({
   phone: z.string().optional(),
 });
 
+export const verifyOtpSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, "Please enter a valid email.")
+    .email("Please enter a valid email."),
+  otp: z
+    .string()
+    .trim()
+    .length(6, "Verification code must be exactly 6 digits.")
+    .regex(/^\d{6}$/, "Verification code must contain only numbers."),
+});
+
+export const resendOtpSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, "Please enter a valid email.")
+    .email("Please enter a valid email."),
+});
+
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type StudentRegisterFormData = z.infer<typeof studentRegisterSchema>;
 export type StudentProfileFormData = z.infer<typeof studentProfileSchema>;
+export type VerifyOtpFormData = z.infer<typeof verifyOtpSchema>;
+export type ResendOtpFormData = z.infer<typeof resendOtpSchema>;
