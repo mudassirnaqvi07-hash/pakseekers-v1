@@ -100,7 +100,7 @@ export async function authenticateCredentials(
   }
 
   // Account suspension enforcement
-  if (user.status === "suspended") {
+  if ((user.status || "").toLowerCase() === "suspended") {
     return {
       success: false,
       failure: {

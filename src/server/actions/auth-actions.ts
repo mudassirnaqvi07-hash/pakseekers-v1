@@ -386,6 +386,10 @@ export async function updateStudentProfileAction(
     return { success: false, error: "You must be logged in as a student to update your profile." };
   }
 
+  if ((user.status || "").toLowerCase() === "suspended") {
+    return { success: false, error: "Your account has been suspended by an administrator." };
+  }
+
   const parsed = studentProfileSchema.safeParse(rawInput);
   if (!parsed.success) {
     return {
