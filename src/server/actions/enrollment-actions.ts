@@ -44,6 +44,13 @@ export async function enrollInExamAction(
       };
     }
 
+    if ((user.status || "").toLowerCase() === "suspended") {
+      return {
+        success: false,
+        error: "Your account has been suspended by an administrator. You cannot enroll in examinations.",
+      };
+    }
+
     if (user.role !== "student" && user.role !== "admin") {
       return {
         success: false,
@@ -93,6 +100,13 @@ export async function removeExamEnrollmentAction(
       return {
         success: false,
         error: "You must be signed in to manage your examination preparations.",
+      };
+    }
+
+    if ((user.status || "").toLowerCase() === "suspended") {
+      return {
+        success: false,
+        error: "Your account has been suspended by an administrator.",
       };
     }
 

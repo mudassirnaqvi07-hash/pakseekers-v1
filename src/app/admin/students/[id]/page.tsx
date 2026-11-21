@@ -68,7 +68,9 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
           <StudentStatusToggle
             studentId={student.id}
             studentName={student.name}
+            studentEmail={student.email}
             currentStatus={studentStatus}
+            redirectOnDelete={true}
           />
         </div>
       </div>

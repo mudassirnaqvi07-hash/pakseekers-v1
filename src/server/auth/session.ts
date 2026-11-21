@@ -171,7 +171,7 @@ export async function requireStudent(callbackUrl?: string): Promise<SafeUser> {
     redirect("/access-denied?role=student-required");
   }
 
-  if (user.status === "suspended") {
+  if ((user.status || "").toLowerCase() === "suspended") {
     redirect("/student/login?error=" + encodeURIComponent("Your account has been suspended. Please contact support."));
   }
 
@@ -193,6 +193,10 @@ export async function requireAdmin(): Promise<SafeUser> {
   // Strict role check: Student users cannot access admin console functionality
   if (user.role !== "admin") {
     redirect("/access-denied?role=admin-required");
+  }
+
+  if ((user.status || "").toLowerCase() === "suspended") {
+    redirect("/access-denied?error=admin-suspended");
   }
 
   return user;
