@@ -414,45 +414,47 @@ export async function ensureMongoIndexes(db: Db): Promise<{
   const set1 = await settingsCol.createIndex({ id: 1 }, { unique: true, name: "idx_settings_id_unique" });
   results.push({ collection: COLLECTIONS.SETTINGS, indexesCreated: [set1] });
 
-  // 13. Student Enrollments Indexes
-  const enrollmentsCol = db.collection(COLLECTIONS.ENROLLMENTS);
-  const enr1 = await enrollmentsCol.createIndex(
-    { studentId: 1, examinationId: 1 },
-    { unique: true, name: "idx_enrollments_student_exam_unique" }
-  );
-  const enr2 = await enrollmentsCol.createIndex(
-    { studentId: 1, status: 1 },
-    { name: "idx_enrollments_student_status" }
-  );
-  const enr3 = await enrollmentsCol.createIndex(
-    { examinationId: 1, status: 1 },
-    { name: "idx_enrollments_exam_status" }
-  );
-  results.push({ collection: COLLECTIONS.ENROLLMENTS, indexesCreated: [enr1, enr2, enr3] });
-
-  // 14. Exam-Subjects Junction Indexes
-  const examSubjectsCol = db.collection(COLLECTIONS.EXAM_SUBJECTS);
-  const es1 = await examSubjectsCol.createIndex(
-    { examId: 1, subjectId: 1 },
-    { unique: true, name: "idx_exam_subjects_exam_subject_unique" }
-  );
-  const es2 = await examSubjectsCol.createIndex(
-    { examId: 1, displayOrder: 1 },
-    { name: "idx_exam_subjects_exam_order" }
-  );
-  const es3 = await examSubjectsCol.createIndex(
-    { subjectId: 1 },
-    { name: "idx_exam_subjects_subject" }
-  );
-  results.push({ collection: COLLECTIONS.EXAM_SUBJECTS, indexesCreated: [es1, es2, es3] });
-
-  // 15. Additional User Indexes for Student Management & Verification
+  // 13. Additional User Indexes for Student Management & Verification
   const u3 = await usersCol.createIndex({ role: 1, status: 1 }, { name: "idx_users_role_status" });
   const u4 = await usersCol.createIndex(
     { emailVerificationTokenHash: 1 },
     { sparse: true, name: "idx_users_verification_token" }
   );
   results[0].indexesCreated.push(u3, u4);
+
+  // 14. Student Enrollments Indexes
+  const enrollmentsCol = db.collection(COLLECTIONS.ENROLLMENTS);
+  const enr1 = await enrollmentsCol.createIndex({ id: 1 }, { unique: true, name: "idx_enrollments_id_unique" });
+  const enr2 = await enrollmentsCol.createIndex(
+    { studentId: 1, examinationId: 1 },
+    { unique: true, name: "idx_enrollments_student_exam_unique" }
+  );
+  const enr3 = await enrollmentsCol.createIndex(
+    { studentId: 1, status: 1 },
+    { name: "idx_enrollments_student_status" }
+  );
+  const enr4 = await enrollmentsCol.createIndex(
+    { examinationId: 1, status: 1 },
+    { name: "idx_enrollments_exam_status" }
+  );
+  results.push({ collection: COLLECTIONS.ENROLLMENTS, indexesCreated: [enr1, enr2, enr3, enr4] });
+
+  // 15. Exam-Subjects Junction Indexes
+  const examSubjectsCol = db.collection(COLLECTIONS.EXAM_SUBJECTS);
+  const es1 = await examSubjectsCol.createIndex({ id: 1 }, { unique: true, name: "idx_exam_subjects_id_unique" });
+  const es2 = await examSubjectsCol.createIndex(
+    { examId: 1, subjectId: 1 },
+    { unique: true, name: "idx_exam_subjects_exam_subject_unique" }
+  );
+  const es3 = await examSubjectsCol.createIndex(
+    { examId: 1, displayOrder: 1 },
+    { name: "idx_exam_subjects_exam_order" }
+  );
+  const es4 = await examSubjectsCol.createIndex(
+    { subjectId: 1 },
+    { name: "idx_exam_subjects_subject" }
+  );
+  results.push({ collection: COLLECTIONS.EXAM_SUBJECTS, indexesCreated: [es1, es2, es3, es4] });
 
   return results;
 }

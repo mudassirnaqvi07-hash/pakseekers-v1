@@ -26,6 +26,14 @@ export type EnrollmentStatus = "ACTIVE" | "REMOVED";
 
 export type EnrollmentSource = "FREE_SELECTION" | "SUBSCRIPTION" | "ADMIN_GRANTED";
 
+// ---------------------------------------------------------------------------
+// Student Multi-Exam Enrollment Model
+// ---------------------------------------------------------------------------
+
+/**
+ * Tracks a student's active or past enrollment in an examination track.
+ * Supports multiple concurrent preparations with independent lifecycle.
+ */
 export interface StudentEnrollment {
   id: string;
   studentId: string;
@@ -38,6 +46,26 @@ export interface StudentEnrollment {
   updatedAt: string;
 }
 
+/**
+ * Enriched exam details for an enrolled student dashboard.
+ */
+export interface EnrolledExamDetails {
+  exam: Exam;
+  enrollment: StudentEnrollment;
+  totalSubjects: number;
+  totalTests: number;
+  completedAttempts: number;
+  averageScore: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// Exam-Subject Many-to-Many Junction Model
+// ---------------------------------------------------------------------------
+
+/**
+ * Junction entity mapping reusable subjects to multiple examinations.
+ * Supports exam-specific ordering and curriculum weightage.
+ */
 export interface ExamSubject {
   id: string;
   examId: string;
@@ -126,10 +154,13 @@ export interface Exam {
 export interface Subject {
   id: string;
   examId: string;
+  examIds?: string[];
   title: string;
   description: string;
   icon?: string;
   totalTopics: number;
+  displayOrder?: number;
+  weightage?: number;
   status?: ContentStatus;
   createdAt?: string;
   updatedAt?: string;

@@ -17,6 +17,7 @@ import {
   toDomainEntities,
   type ExamDoc,
   type SubjectDoc,
+  type ExamSubjectDoc,
   type TopicDoc,
   type QuestionDoc,
   type TestDoc,
@@ -26,6 +27,7 @@ import {
 import type {
   Exam,
   Subject,
+  ExamSubject,
   Topic,
   Question,
   QuestionOption,
@@ -199,12 +201,256 @@ export async function deleteExam(id: string): Promise<boolean> {
 // Subject Operations
 // ---------------------------------------------------------------------------
 
-export async function getAllSubjects(examId?: string): Promise<Subject[]> {
+/**
+ * Fetches all subjects for an exam using many-to-many junction collection `exam_subjects`.
+ * Preserves custom displayOrder and weightage.
+ * Seamlessly falls back to legacy `examId` on `subjects` collection if no junction records exist.
+ */
+export async function getSubjectsForExam(examId: string): Promise<Subject[]> {
+  if (!examId) return [];
   const db = await getMongoDb();
-  const filter = examId ? { examId: { $in: [examId, examId.toLowerCase()] } } : {};
+  const normalizedExamId = examId.trim();
+
+  // 1. Check exam_subjects junction table
+  const junctions = await db
+    .collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS)
+    .find({
+      examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+      isActive: { $ne: false },
+    })
+    .sort({ displayOrder: 1 })
+    .toArray();
+
+  if (junctions.length > 0) {
+    const subjectIds = junctions.map((j) => j.subjectId);
+    const subjectDocs = await db
+      .collection<SubjectDoc>(COLLECTIONS.SUBJECTS)
+      .find({
+        $or: [
+          { id: { $in: subjectIds } },
+          { id: { $in: subjectIds.map((s) => s.toLowerCase()) } },
+        ],
+      })
+      .toArray();
+
+    const subjectMap = new Map<string, SubjectDoc>();
+    for (const s of subjectDocs) {
+      subjectMap.set(s.id, s);
+      subjectMap.set(s.id.toLowerCase(), s);
+    }
+
+    // Map according to junction ordering and inject displayOrder / weightage
+    const orderedSubjects: Subject[] = [];
+    for (const j of junctions) {
+      const doc = subjectMap.get(j.subjectId) || subjectMap.get(j.subjectId.toLowerCase());
+      if (doc) {
+        const entity = toDomainEntity<Subject>(doc);
+        entity.displayOrder = j.displayOrder;
+        entity.weightage = j.weightage;
+        orderedSubjects.push(entity);
+      }
+    }
+
+    if (orderedSubjects.length > 0) {
+      return orderedSubjects;
+    }
+  }
+
+  // 2. Backward compatibility fallback: query direct examId or examIds
+  const fallbackDocs = await db
+    .collection<SubjectDoc>(COLLECTIONS.SUBJECTS)
+    .find({
+      $or: [
+        { examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] } },
+        { examIds: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] } },
+      ],
+    })
+    .sort({ title: 1 })
+    .toArray();
+
+  return toDomainEntities<Subject>(fallbackDocs);
+}
+
+/**
+ * Assigns an existing subject to an exam in the junction table with custom ordering and weightage.
+ * Also synchronizes examIds array on the Subject document and increments totalSubjects on Exam.
+ */
+export async function assignSubjectToExam(
+  examId: string,
+  subjectId: string,
+  displayOrder?: number,
+  weightage?: number
+): Promise<ExamSubject> {
+  const db = await getMongoDb();
+  const normalizedExamId = examId.trim();
+  const normalizedSubjectId = subjectId.trim();
+  const now = new Date().toISOString();
+  const id = `es_${normalizedExamId}_${normalizedSubjectId}`;
+
+  // If displayOrder not provided, append to end
+  let order = displayOrder;
+  if (order === undefined) {
+    const existingCount = await db
+      .collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS)
+      .countDocuments({
+        examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+      });
+    order = existingCount + 1;
+  }
+
+  const junctionDoc: ExamSubjectDoc = {
+    id,
+    examId: normalizedExamId,
+    subjectId: normalizedSubjectId,
+    displayOrder: order,
+    weightage,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS).updateOne(
+    {
+      examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+      subjectId: { $in: [normalizedSubjectId, normalizedSubjectId.toLowerCase()] },
+    },
+    { $set: junctionDoc },
+    { upsert: true }
+  );
+
+  // Sync examIds on Subject document
+  await db
+    .collection<SubjectDoc>(COLLECTIONS.SUBJECTS)
+    .updateOne(
+      { $or: [{ id: normalizedSubjectId }, { id: normalizedSubjectId.toLowerCase() }] },
+      { $addToSet: { examIds: normalizedExamId } as never }
+    );
+
+  // Re-sync exam totalSubjects
+  const total = await db
+    .collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS)
+    .countDocuments({
+      examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+      isActive: { $ne: false },
+    });
+
+  await db
+    .collection<ExamDoc>(COLLECTIONS.EXAMS)
+    .updateOne(
+      { $or: [{ id: normalizedExamId }, { id: normalizedExamId.toLowerCase() }] },
+      { $set: { totalSubjects: total, updatedAt: now } }
+    );
+
+  return toDomainEntity<ExamSubject>(junctionDoc);
+}
+
+/**
+ * Removes a subject from an exam junction.
+ * Does not delete the subject entity, enabling reusability in other exams.
+ */
+export async function removeSubjectFromExam(
+  examId: string,
+  subjectId: string
+): Promise<boolean> {
+  const db = await getMongoDb();
+  const normalizedExamId = examId.trim();
+  const normalizedSubjectId = subjectId.trim();
+  const now = new Date().toISOString();
+
+  const delResult = await db.collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS).deleteOne({
+    examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+    subjectId: { $in: [normalizedSubjectId, normalizedSubjectId.toLowerCase()] },
+  });
+
+  if (delResult.deletedCount > 0) {
+    // Remove examId from subject's examIds array
+    await db
+      .collection<SubjectDoc>(COLLECTIONS.SUBJECTS)
+      .updateOne(
+        { $or: [{ id: normalizedSubjectId }, { id: normalizedSubjectId.toLowerCase() }] },
+        { $pull: { examIds: normalizedExamId } as never }
+      );
+
+    // Re-sync exam totalSubjects
+    const total = await db
+      .collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS)
+      .countDocuments({
+        examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+        isActive: { $ne: false },
+      });
+
+    await db
+      .collection<ExamDoc>(COLLECTIONS.EXAMS)
+      .updateOne(
+        { $or: [{ id: normalizedExamId }, { id: normalizedExamId.toLowerCase() }] },
+        { $set: { totalSubjects: total, updatedAt: now } }
+      );
+
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Gets all raw junction records for an exam.
+ */
+export async function getExamSubjectJunctions(examId: string): Promise<ExamSubject[]> {
+  const db = await getMongoDb();
+  const normalizedExamId = examId.trim();
+  const docs = await db
+    .collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS)
+    .find({
+      examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+      isActive: { $ne: false },
+    })
+    .sort({ displayOrder: 1 })
+    .toArray();
+
+  return toDomainEntities<ExamSubject>(docs);
+}
+
+/**
+ * Updates displayOrder for multiple subjects in an exam.
+ */
+export async function updateExamSubjectOrder(
+  examId: string,
+  subjectOrder: { subjectId: string; displayOrder: number }[]
+): Promise<boolean> {
+  const db = await getMongoDb();
+  const normalizedExamId = examId.trim();
+  const now = new Date().toISOString();
+
+  const bulkOps = subjectOrder.map((item) => ({
+    updateOne: {
+      filter: {
+        examId: { $in: [normalizedExamId, normalizedExamId.toLowerCase()] },
+        subjectId: { $in: [item.subjectId, item.subjectId.toLowerCase()] },
+      },
+      update: {
+        $set: {
+          displayOrder: item.displayOrder,
+          updatedAt: now,
+        },
+      },
+    },
+  }));
+
+  if (bulkOps.length > 0) {
+    await db.collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS).bulkWrite(bulkOps);
+  }
+
+  return true;
+}
+
+export async function getAllSubjects(examId?: string): Promise<Subject[]> {
+  if (examId) {
+    return getSubjectsForExam(examId);
+  }
+  const db = await getMongoDb();
   const docs = await db
     .collection<SubjectDoc>(COLLECTIONS.SUBJECTS)
-    .find(filter)
+    .find({})
     .sort({ title: 1 })
     .toArray();
   return toDomainEntities<Subject>(docs);
@@ -242,6 +488,7 @@ export async function createSubject(input: {
   const newSubject: Subject = {
     id,
     examId: input.examId,
+    examIds: [input.examId],
     title: input.title.trim(),
     description: input.description.trim(),
     icon: input.icon || "BookOpen",
@@ -252,6 +499,22 @@ export async function createSubject(input: {
   };
 
   await db.collection<SubjectDoc>(COLLECTIONS.SUBJECTS).insertOne(newSubject as SubjectDoc);
+
+  // Automatically register in exam_subjects junction table
+  const existingCount = await db
+    .collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS)
+    .countDocuments({ examId: input.examId });
+
+  const junctionDoc: ExamSubjectDoc = {
+    id: `es_${input.examId}_${id}`,
+    examId: input.examId,
+    subjectId: id,
+    displayOrder: existingCount + 1,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await db.collection<ExamSubjectDoc>(COLLECTIONS.EXAM_SUBJECTS).insertOne(junctionDoc);
 
   // Increment parent exam totalSubjects
   await db
@@ -307,8 +570,9 @@ export async function deleteSubject(id: string): Promise<boolean> {
     $or: [{ id }, { id: lowerId }],
   });
 
-  // Cascade clean-up
+  // Cascade clean-up (including exam_subjects junction records)
   await Promise.all([
+    db.collection(COLLECTIONS.EXAM_SUBJECTS).deleteMany({ subjectId: { $in: [id, lowerId] } }),
     db.collection(COLLECTIONS.TOPICS).deleteMany({ subjectId: { $in: [id, lowerId] } }),
     db.collection(COLLECTIONS.QUESTIONS).deleteMany({ subjectId: { $in: [id, lowerId] } }),
     db.collection(COLLECTIONS.TESTS).deleteMany({ subjectId: { $in: [id, lowerId] } }),
