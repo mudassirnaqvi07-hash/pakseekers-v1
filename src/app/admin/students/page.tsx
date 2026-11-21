@@ -157,6 +157,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
                           <StudentStatusToggle
                             studentId={student.id}
                             studentName={student.name}
+                            studentEmail={student.email}
                             currentStatus={studentStatus}
                           />
                           <Link href={`/admin/students/${student.id}`}>
