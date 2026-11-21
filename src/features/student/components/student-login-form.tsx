@@ -122,7 +122,7 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
             <div>
               <p className="font-bold text-amber-900">Email Verification Required</p>
               <p className="text-amber-800/90 mt-0.5">
-                Your account ({unverifiedEmail}) has not been verified yet. Please check your inbox or spam folder for the verification link.
+                Your account ({unverifiedEmail}) has not been verified yet. Please enter the 6-digit verification code sent to your email.
               </p>
             </div>
           </div>
@@ -149,13 +149,13 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
               className="text-amber-900 border-amber-300 hover:bg-amber-100/50 text-xs"
             >
               <RefreshCw className="w-3 h-3 mr-1" />
-              Resend Verification Email
+              Resend Code
             </Button>
             <Link
-              href="/verify-email"
+              href={`/verify-email?email=${encodeURIComponent(unverifiedEmail)}`}
               className="text-xs text-primary hover:underline font-semibold"
             >
-              Verification help &rarr;
+              Enter Verification Code &rarr;
             </Link>
           </div>
         </div>

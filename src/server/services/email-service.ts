@@ -104,98 +104,22 @@ export async function verifySmtpConnection(): Promise<{
 }
 
 /**
- * Resolves the server-side base URL for account verification links.
+ * Builds the responsive HTML body for the OTP verification email.
  *
  * Rules:
- * - In production: Requires a valid non-localhost APP_URL from server environment variables.
- *   Fails safely (throws Error) if APP_URL is missing, malformed, or points to localhost/127.0.0.1.
- * - In development/test: Uses APP_URL if provided; otherwise defaults to 'http://localhost:3000'.
- *
- * Never uses client-side NEXT_PUBLIC_ variables.
- * Never hardcodes production domains.
+ * - Prominently displays the 6-digit OTP code.
+ * - States clear 10-minute expiration.
+ * - Warns user never to share the code.
+ * - Contains NO verification URLs or links.
  */
-export function getVerificationBaseUrl(): string {
-  const isProduction = process.env.NODE_ENV === "production";
-  const rawUrl = (process.env.APP_URL || env.APP_URL || "").trim();
-
-  if (isProduction) {
-    if (!rawUrl) {
-      throw new Error(
-        "APP_URL environment variable is missing in production. Please configure APP_URL (e.g., https://your-domain.vercel.app) in your Vercel Project Environment Variables."
-      );
-    }
-
-    let parsedUrl: URL;
-    try {
-      // Ensure protocol for parsing
-      const withProtocol = rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
-        ? rawUrl
-        : `https://${rawUrl}`;
-      parsedUrl = new URL(withProtocol);
-    } catch {
-      throw new Error(
-        `Invalid APP_URL configured in production: '${rawUrl}'. Must be a valid absolute HTTP/HTTPS URL.`
-      );
-    }
-
-    // Fail safely if someone accidentally configured localhost or loopback in production
-    if (
-      parsedUrl.hostname === "localhost" ||
-      parsedUrl.hostname === "127.0.0.1" ||
-      parsedUrl.hostname.endsWith(".local")
-    ) {
-      throw new Error(
-        `APP_URL is configured to a local address ('${rawUrl}') in production. Please configure your actual production domain in Vercel environment variables.`
-      );
-    }
-
-    return parsedUrl.origin;
-  }
-
-  // Development & Test environments
-  if (!rawUrl) {
-    return "http://localhost:3000";
-  }
-
-  try {
-    const withProtocol = rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
-      ? rawUrl
-      : `http://${rawUrl}`;
-    return new URL(withProtocol).origin;
-  } catch {
-    return "http://localhost:3000";
-  }
-}
-
-/**
- * Constructs a fully qualified email verification URL using the WHATWG URL API.
- * Ensures safe query parameter encoding and eliminates manual string concatenation risks.
- *
- * Path: /verify-email
- * Param: token=<rawToken>
- */
-export function buildVerificationUrl(token: string): string {
-  if (!token || typeof token !== "string" || !token.trim()) {
-    throw new Error("Verification token is required to build verification URL.");
-  }
-
-  const baseUrl = getVerificationBaseUrl();
-  const url = new URL("/verify-email", baseUrl);
-  url.searchParams.set("token", token.trim());
-  return url.toString();
-}
-
-/**
- * Builds the responsive HTML body for the verification email.
- */
-function buildVerificationEmailHtml({
+function buildOtpVerificationEmailHtml({
   name,
-  verificationUrl,
-  expiresInMinutes,
+  otp,
+  expiresInMinutes = 10,
 }: {
   name: string;
-  verificationUrl: string;
-  expiresInMinutes: number;
+  otp: string;
+  expiresInMinutes?: number;
 }): string {
   const safeName = name ? name.trim() : "Student";
 
@@ -205,7 +129,7 @@ function buildVerificationEmailHtml({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify Your PakSeekers Account</title>
+  <title>Your PakSeekers Verification Code</title>
   <style>
     body {
       margin: 0;
@@ -261,35 +185,23 @@ function buildVerificationEmailHtml({
     .body-text {
       font-size: 15px;
       color: #334155;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
-    .btn-container {
+    .otp-box-container {
       text-align: center;
-      margin: 32px 0;
+      margin: 28px 0;
     }
-    .btn {
+    .otp-box {
       display: inline-block;
-      background-color: #0f766e;
-      color: #ffffff !important;
-      font-size: 15px;
-      font-weight: 700;
-      text-decoration: none;
-      padding: 14px 36px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(15, 118, 110, 0.25);
-    }
-    .btn:hover {
-      background-color: #115e59;
-    }
-    .link-fallback {
-      background-color: #f1f5f9;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 14px;
-      font-size: 12px;
-      color: #475569;
-      word-break: break-all;
-      margin-bottom: 24px;
+      background-color: #f0fdfa;
+      border: 2px dashed #0f766e;
+      border-radius: 12px;
+      padding: 16px 28px;
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: 10px;
+      color: #0f766e;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
     }
     .badge-info {
       display: inline-block;
@@ -298,9 +210,19 @@ function buildVerificationEmailHtml({
       color: #92400e;
       font-size: 12px;
       font-weight: 600;
-      padding: 4px 10px;
+      padding: 5px 12px;
       border-radius: 9999px;
       margin-bottom: 16px;
+    }
+    .security-notice {
+      background-color: #f8fafc;
+      border-left: 4px solid #0f766e;
+      padding: 12px 16px;
+      margin-top: 24px;
+      margin-bottom: 24px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      color: #475569;
     }
     .footer {
       background-color: #f8fafc;
@@ -324,24 +246,21 @@ function buildVerificationEmailHtml({
       </div>
       <div class="content">
         <h2 class="greeting">Welcome to PakSeekers, ${safeName}!</h2>
-        <span class="badge-info">⏳ Verification link expires in ${expiresInMinutes} minutes</span>
+        <span class="badge-info">⏳ Verification code expires in ${expiresInMinutes} minutes</span>
         <p class="body-text">
-          Thank you for creating your student account. To protect your profile and begin practicing for MDCAT, ECAT, and university admissions tests, please verify your email address.
+          Thank you for creating your student account. To complete your registration and begin preparing for MDCAT, ECAT, and university admissions tests, please enter the 6-digit verification code below:
         </p>
 
-        <div class="btn-container">
-          <a href="${verificationUrl}" target="_blank" class="btn">Verify Email Address</a>
+        <div class="otp-box-container">
+          <div class="otp-box">${otp}</div>
         </div>
 
-        <p class="body-text" style="font-size: 13px; color: #64748b; margin-bottom: 8px;">
-          If the button above does not work, copy and paste this link into your web browser:
-        </p>
-        <div class="link-fallback">
-          <a href="${verificationUrl}" style="color: #0f766e; text-decoration: underline;">${verificationUrl}</a>
+        <div class="security-notice">
+          <strong>🔒 Security Reminder:</strong> Never share this verification code with anyone. PakSeekers staff will never ask for your code.
         </div>
 
         <p class="body-text" style="font-size: 13px; color: #64748b; margin-bottom: 0;">
-          If you did not register for an account on PakSeekers, you can safely ignore this email. No account will be activated without your confirmation.
+          If you did not create an account on PakSeekers, you can safely ignore this email. No account will be activated without your confirmation code.
         </p>
       </div>
       <div class="footer">
@@ -362,47 +281,35 @@ export interface SendVerificationEmailResult {
 }
 
 /**
- * Sends a branded student account verification email via SMTP.
+ * Sends a branded student account OTP verification email via SMTP.
  */
 export async function sendVerificationEmail({
   to,
   name,
-  token,
-  expiresInMinutes = 30,
+  otp,
+  expiresInMinutes = 10,
 }: {
   to: string;
   name: string;
-  token: string;
+  otp: string;
   expiresInMinutes?: number;
 }): Promise<SendVerificationEmailResult> {
-  let verificationUrl: string;
-  try {
-    verificationUrl = buildVerificationUrl(token);
-  } catch (urlErr) {
-    const errorMsg = urlErr instanceof Error ? urlErr.message : String(urlErr);
-    console.error("❌ Failed to construct email verification URL:", errorMsg);
-    return {
-      success: false,
-      error: "Unable to generate verification email due to server configuration. Please try again shortly.",
-    };
-  }
-
   const from = process.env.SMTP_FROM || env.SMTP_FROM || "PakSeekers <mudassirhassanreall@gmail.com>";
 
-  const html = buildVerificationEmailHtml({
+  const html = buildOtpVerificationEmailHtml({
     name,
-    verificationUrl,
+    otp,
     expiresInMinutes,
   });
 
   const text = `
 Welcome to PakSeekers, ${name}!
 
-Please verify your student email address to activate your account.
-This link will expire in ${expiresInMinutes} minutes.
+Your 6-digit email verification code is:
+${otp}
 
-Verify Email Address:
-${verificationUrl}
+This verification code will expire in ${expiresInMinutes} minutes.
+For your security, do not share this code with anyone. PakSeekers staff will never ask for your code.
 
 If you did not create an account on PakSeekers, please ignore this email.
   `.trim();
@@ -412,7 +319,7 @@ If you did not create an account on PakSeekers, please ignore this email.
     const info = await transporter.sendMail({
       from,
       to,
-      subject: "Verify Your PakSeekers Account",
+      subject: `${otp} is your PakSeekers verification code`,
       text,
       html,
     });
@@ -423,10 +330,15 @@ If you did not create an account on PakSeekers, please ignore this email.
     };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error("❌ Failed to send verification email via SMTP:", errorMsg);
+    console.error("❌ Failed to send verification OTP email via SMTP:", errorMsg);
     return {
       success: false,
       error: "Unable to dispatch verification email at this moment. Please try again shortly.",
     };
   }
 }
+
+/**
+ * Convenience alias for sendVerificationEmail.
+ */
+export const sendVerificationOtpEmail = sendVerificationEmail;

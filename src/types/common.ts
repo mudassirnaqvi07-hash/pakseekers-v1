@@ -40,6 +40,8 @@ export type ActionResult<T = void> =
       isEmailUnverified?: boolean;
       unverifiedEmail?: string;
       retryAfterSeconds?: number;
+      remainingAttempts?: number;
+      reason?: string;
     };
 
 // ---------------------------------------------------------------------------

@@ -1,34 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyEmailToken } from "@/server/services/auth-service";
+import { verifyStudentOtp } from "@/server/services/auth-service";
 
 /**
  * Server-side Email Verification Endpoint.
  *
- * GET /api/auth/verify-email?token=<token>
+ * GET /api/auth/verify-email
+ * Redirects legacy links safely to the 6-digit OTP verification page.
  *
- * Atomically verifies the token against MongoDB, sets isEmailVerified = true,
- * invalidates the token, and redirects to the user-facing verification status page.
+ * POST /api/auth/verify-email
+ * Verifies student email with a 6-digit OTP payload.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const token = searchParams.get("token");
+  const email = searchParams.get("email");
 
-  if (!token || typeof token !== "string" || token.trim().length < 16) {
-    return NextResponse.redirect(
-      new URL("/verify-email?status=error&reason=invalid", request.url)
-    );
+  const targetUrl = new URL("/verify-email", request.url);
+  if (email) {
+    targetUrl.searchParams.set("email", email);
   }
 
-  const result = await verifyEmailToken(token.trim());
+  return NextResponse.redirect(targetUrl);
+}
 
-  if (!result.success) {
-    const reason = result.reason === "expired" ? "expired" : "invalid";
-    return NextResponse.redirect(
-      new URL(`/verify-email?status=error&reason=${reason}`, request.url)
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { email, otp } = body || {};
+
+    if (!email || !otp) {
+      return NextResponse.json(
+        { success: false, error: "Email and 6-digit verification code are required." },
+        { status: 400 }
+      );
+    }
+
+    const result = await verifyStudentOtp(email, otp);
+    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+  } catch (err) {
+    console.error("API verify-email error:", err);
+    return NextResponse.json(
+      { success: false, error: "Invalid request payload." },
+      { status: 400 }
     );
   }
-
-  return NextResponse.redirect(
-    new URL("/verify-email?status=success", request.url)
-  );
 }
