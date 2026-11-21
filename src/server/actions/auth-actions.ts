@@ -15,8 +15,9 @@ import {
   registerNewStudent,
   invalidateSession,
   updateProfile,
-  resendStudentVerificationEmail,
+  resendStudentVerificationOtp,
   verifyEmailToken,
+  verifyStudentOtp,
 } from "@/server/services/auth-service";
 import {
   setSessionCookie,
@@ -30,6 +31,8 @@ import {
   loginSchema,
   studentRegisterSchema,
   studentProfileSchema,
+  verifyOtpSchema,
+  resendOtpSchema,
 } from "@/lib/validations/auth";
 
 // ---------------------------------------------------------------------------
@@ -102,7 +105,7 @@ export async function loginStudentAction(
 
 export async function registerStudentAction(
   rawInput: unknown
-): Promise<ActionResult<{ email: string; emailSent: boolean; message: string }>> {
+): Promise<ActionResult<{ email: string; emailSent: boolean; message: string; redirectUrl?: string }>> {
   const parsed = studentRegisterSchema.safeParse(rawInput);
   if (!parsed.success) {
     return {
@@ -147,10 +150,12 @@ export async function registerStudentAction(
     if (result.message) {
       message = result.message;
     } else if (result.emailSent) {
-      message = "Account created successfully! We have sent a verification link to your email address.";
+      message = "Account created successfully! We have sent a 6-digit verification code to your email address.";
     } else {
-      message = "Account created! However, we were unable to deliver the verification email right now. Please click 'Resend Email' below to try again.";
+      message = "Account created! However, we were unable to deliver the verification code right now. Please request a new code.";
     }
+
+    const redirectUrl = `/verify-email?email=${encodeURIComponent(result.user.email)}&registered=true`;
 
     return {
       success: true,
@@ -158,6 +163,7 @@ export async function registerStudentAction(
         email: result.user.email,
         emailSent: result.emailSent,
         message,
+        redirectUrl,
       },
     };
   } catch (err: unknown) {
@@ -174,18 +180,68 @@ export async function registerStudentAction(
 }
 
 /**
- * Resends a verification email for an unverified student account.
+ * Verifies a student email address with a 6-digit OTP code.
  */
-export async function resendVerificationAction(
-  email: string
-): Promise<ActionResult<{ message: string }>> {
+export async function verifyOtpAction(
+  rawInput: unknown
+): Promise<ActionResult<{ message: string; redirectUrl: string }>> {
   try {
-    const trimmed = (email || "").trim().toLowerCase();
-    if (!trimmed || !trimmed.includes("@")) {
-      return { success: false, error: "Please enter a valid email address." };
+    const parsed = verifyOtpSchema.safeParse(rawInput);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.issues[0]?.message || "Invalid verification code format.",
+      };
     }
 
-    const result = await resendStudentVerificationEmail(trimmed);
+    const { email, otp } = parsed.data;
+    const result = await verifyStudentOtp(email, otp);
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.message,
+        reason: result.reason,
+        remainingAttempts: result.remainingAttempts,
+      };
+    }
+
+    safeRevalidate("/student/login");
+    safeRevalidate("/verify-email");
+
+    return {
+      success: true,
+      data: {
+        message: result.message,
+        redirectUrl: "/student/login?verified=true",
+      },
+    };
+  } catch (err) {
+    console.error("Failed to verify OTP:", err);
+    return {
+      success: false,
+      error: "Unable to complete verification right now. Please try again.",
+    };
+  }
+}
+
+/**
+ * Resends a 6-digit verification OTP for an unverified student account.
+ */
+export async function resendOtpAction(
+  rawInput: unknown
+): Promise<ActionResult<{ message: string; cooldownSeconds: number }>> {
+  try {
+    const inputObj = typeof rawInput === "string" ? { email: rawInput } : rawInput;
+    const parsed = resendOtpSchema.safeParse(inputObj);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.issues[0]?.message || "Please enter a valid email address.",
+      };
+    }
+
+    const { email } = parsed.data;
+    const result = await resendStudentVerificationOtp(email);
     if (!result.success) {
       return {
         success: false,
@@ -196,19 +252,31 @@ export async function resendVerificationAction(
 
     return {
       success: true,
-      data: { message: result.message },
+      data: {
+        message: result.message,
+        cooldownSeconds: result.cooldownSeconds ?? 60,
+      },
     };
   } catch (err) {
-    console.error("Failed to resend verification email:", err);
+    console.error("Failed to resend OTP:", err);
     return {
       success: false,
-      error: "Unable to send verification email. Please try again shortly.",
+      error: "Unable to send verification code. Please try again shortly.",
     };
   }
 }
 
 /**
- * Verifies a student email address with a received token.
+ * Backward-compatible wrapper for resending verification code.
+ */
+export async function resendVerificationAction(
+  email: string
+): Promise<ActionResult<{ message: string; cooldownSeconds?: number }>> {
+  return resendOtpAction({ email });
+}
+
+/**
+ * Backward-compatible endpoint for link-based verification attempts.
  */
 export async function verifyEmailTokenAction(
   token: string

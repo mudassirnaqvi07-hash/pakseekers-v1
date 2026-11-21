@@ -26,6 +26,10 @@ export interface User {
   isEmailVerified?: boolean;
   emailVerificationTokenHash?: string | null;
   emailVerificationExpiresAt?: string | null;
+  otpCodeHash?: string | null;
+  otpExpiresAt?: string | null;
+  otpLastSentAt?: string | null;
+  otpAttempts?: number;
   profile: StudentProfile;
   phone?: string;
   targetExam?: string;
@@ -37,9 +41,9 @@ export interface User {
 }
 
 /**
- * Sanitized user object without sensitive credentials (passwordHash, verification token hashes), safe for presentation.
+ * Sanitized user object without sensitive credentials (passwordHash, verification token hashes, OTP hash), safe for presentation.
  */
-export type SafeUser = Omit<User, "passwordHash" | "emailVerificationTokenHash">;
+export type SafeUser = Omit<User, "passwordHash" | "emailVerificationTokenHash" | "otpCodeHash">;
 
 export interface UserSession {
   token: string;
