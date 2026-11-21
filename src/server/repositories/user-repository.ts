@@ -9,8 +9,10 @@ import "server-only";
  *   - Test Attempts & Results (Evaluated quiz attempts and performance logs)
  */
 
+import { type ClientSession } from "mongodb";
 import {
   getMongoDb,
+  getMongoClient,
   COLLECTIONS,
   toDomainEntity,
   toSafeUser,
@@ -18,7 +20,10 @@ import {
   type UserDoc,
   type SessionDoc,
   type TestAttemptDoc,
+  type StudentEnrollmentDoc,
+  type QuestionReportDoc,
 } from "@/server/db";
+import { resetRateLimit } from "@/server/auth/rate-limiter";
 import {
   hashPassword,
   verifyPassword,
@@ -874,4 +879,117 @@ export async function updateStudentProfileByAdmin(
   );
 
   return toSafeUser(result);
+}
+
+/**
+ * Permanently deletes a student account and completely purges all personal data.
+ *
+ * Implements actual permanent deletion (NOT soft deletion):
+ * 1. Permanently removes the user document from the USERS collection.
+ * 2. Removes the associated email, immediately freeing it for new registrations.
+ * 3. Invalidates all active sessions and authentication tokens.
+ * 4. Removes associated examination enrollments.
+ * 5. Removes associated test attempts and diagnostic records.
+ * 6. Anonymizes question reports submitted by the student (removes PII: name, email).
+ * 7. Clears authentication rate limits and OTP caches.
+ * 8. Uses MongoDB multi-document transactions where supported by deployment.
+ *
+ * Security:
+ * Strictly prevents deletion of administrator accounts.
+ */
+export async function permanentlyDeleteUser(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!userId) {
+    return { success: false, error: "User ID is required." };
+  }
+
+  const db = await getMongoDb();
+  const user = await db.collection<UserDoc>(COLLECTIONS.USERS).findOne({ id: userId });
+
+  if (!user) {
+    return { success: false, error: "Account not found in the database." };
+  }
+
+  if (user.role === "admin") {
+    return { success: false, error: "Administrator accounts cannot be deleted through this interface." };
+  }
+
+  const normalizedEmail = user.email.trim().toLowerCase();
+  const client = await getMongoClient();
+
+  let transactionCommitted = false;
+  let session: ClientSession | null = null;
+
+  try {
+    session = client.startSession();
+    await session.withTransaction(async (activeSession) => {
+      // 1. Delete user from USERS collection
+      await db.collection<UserDoc>(COLLECTIONS.USERS).deleteOne({ id: userId }, { session: activeSession });
+
+      // 2. Delete all sessions from SESSIONS collection
+      await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).deleteMany({ userId }, { session: activeSession });
+
+      // 3. Delete all enrollments from ENROLLMENTS collection
+      await db.collection<StudentEnrollmentDoc>(COLLECTIONS.ENROLLMENTS).deleteMany({ studentId: userId }, { session: activeSession });
+
+      // 4. Delete all attempts from ATTEMPTS collection
+      await db.collection<TestAttemptDoc>(COLLECTIONS.ATTEMPTS).deleteMany({ studentId: userId }, { session: activeSession });
+
+      // 5. Anonymize QUESTION_REPORTS to retain bug triage without retaining student PII
+      await db.collection<QuestionReportDoc>(COLLECTIONS.QUESTION_REPORTS).updateMany(
+        { studentId: userId },
+        {
+          $set: {
+            studentId: `deleted_${userId}`,
+            studentName: "[Deleted Student]",
+            studentEmail: "anonymized@deleted.user",
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        { session: activeSession }
+      );
+    });
+    transactionCommitted = true;
+  } catch (txErr: unknown) {
+    // If transactions are not supported on this MongoDB deployment (e.g. standalone Mongo in testing)
+    console.warn(
+      "MongoDB transaction not supported or failed, applying resilient direct deletion:",
+      txErr instanceof Error ? txErr.message : txErr
+    );
+  } finally {
+    if (session) {
+      await session.endSession().catch(() => {});
+    }
+  }
+
+  // If transaction wasn't used/supported, execute sequential cleanup
+  if (!transactionCommitted) {
+    await db.collection<UserDoc>(COLLECTIONS.USERS).deleteOne({ id: userId });
+    await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).deleteMany({ userId });
+    await db.collection<StudentEnrollmentDoc>(COLLECTIONS.ENROLLMENTS).deleteMany({ studentId: userId });
+    await db.collection<TestAttemptDoc>(COLLECTIONS.ATTEMPTS).deleteMany({ studentId: userId });
+    await db.collection<QuestionReportDoc>(COLLECTIONS.QUESTION_REPORTS).updateMany(
+      { studentId: userId },
+      {
+        $set: {
+          studentId: `deleted_${userId}`,
+          studentName: "[Deleted Student]",
+          studentEmail: "anonymized@deleted.user",
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    );
+  }
+
+  // Reset rate limits for the deleted email so future registrations aren't throttled
+  try {
+    await resetRateLimit(`login:student:${normalizedEmail}`);
+    await resetRateLimit(`login:user:${normalizedEmail}`);
+    await resetRateLimit(`resend-otp:${normalizedEmail}`);
+  } catch {
+    // Non-fatal
+  }
+
+  return { success: true };
 }

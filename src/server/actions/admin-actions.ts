@@ -33,6 +33,14 @@ async function verifyAdminAuth(): Promise<{ user: SafeUser } | { error: ActionRe
       },
     };
   }
+  if ((user.status || "").toLowerCase() === "suspended") {
+    return {
+      error: {
+        success: false,
+        error: "Unauthorized: Your administrator account has been suspended.",
+      },
+    };
+  }
   return { user };
 }
 
@@ -47,21 +55,97 @@ export async function updateStudentStatusAction(
   const auth = await verifyAdminAuth();
   if ("error" in auth) return auth.error;
 
-  if (!studentId) return { success: false, error: "Student ID is required." };
+  if (!studentId || typeof studentId !== "string" || !studentId.trim()) {
+    return { success: false, error: "Student ID is required." };
+  }
+
+  const normalizedId = studentId.trim();
+
+  // Self-modification protection
+  if (auth.user.id === normalizedId) {
+    return {
+      success: false,
+      error: "Administrators cannot change the status of their own account.",
+    };
+  }
+
   if (status !== "active" && status !== "suspended") {
     return { success: false, error: "Status must be either 'active' or 'suspended'." };
   }
 
+  // Validate target user exists and is a student
+  const target = await userRepo.findUserById(normalizedId);
+  if (!target) {
+    return { success: false, error: "Student account not found." };
+  }
+
+  if (target.role !== "student") {
+    return {
+      success: false,
+      error: "Only student accounts can be suspended or reactivated through this interface.",
+    };
+  }
+
   try {
-    const updated = await userRepo.updateStudentStatus(studentId, status);
+    const updated = await userRepo.updateStudentStatus(normalizedId, status);
     if (!updated) return { success: false, error: "Student account not found." };
 
     revalidatePath("/admin/students");
-    revalidatePath(`/admin/students/${studentId}`);
+    revalidatePath(`/admin/students/${normalizedId}`);
+    revalidatePath("/admin/dashboard");
     return { success: true, data: updated };
   } catch (err) {
     console.error("Failed to update student status:", err);
     return { success: false, error: "Failed to update student account status." };
+  }
+}
+
+export async function deleteStudentAccountAction(
+  studentId: string
+): Promise<ActionResult<{ studentId: string }>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  if (!studentId || typeof studentId !== "string" || !studentId.trim()) {
+    return { success: false, error: "Student ID is required." };
+  }
+
+  const normalizedId = studentId.trim();
+
+  // Self-deletion protection
+  if (auth.user.id === normalizedId) {
+    return {
+      success: false,
+      error: "Administrators cannot delete their own account through this interface.",
+    };
+  }
+
+  const target = await userRepo.findUserById(normalizedId);
+  if (!target) {
+    return { success: false, error: "Student account not found in the database." };
+  }
+
+  if (target.role !== "student") {
+    return {
+      success: false,
+      error: "Only student accounts can be permanently deleted through this interface.",
+    };
+  }
+
+  try {
+    const result = await userRepo.permanentlyDeleteUser(normalizedId);
+    if (!result.success) {
+      return { success: false, error: result.error || "Failed to permanently delete student account." };
+    }
+
+    revalidatePath("/admin/students");
+    revalidatePath(`/admin/students/${normalizedId}`);
+    revalidatePath("/admin/dashboard");
+    revalidatePath("/admin/reports");
+    return { success: true, data: { studentId: normalizedId } };
+  } catch (err) {
+    console.error("Failed to permanently delete student account:", err);
+    return { success: false, error: "Failed to permanently delete student account. Please try again." };
   }
 }
 

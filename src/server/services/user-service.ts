@@ -71,3 +71,9 @@ export async function updateStudentProfileByAdmin(
 ): Promise<SafeUser | null> {
   return userRepo.updateStudentProfileByAdmin(studentId, input);
 }
+
+export async function permanentlyDeleteStudent(
+  studentId: string
+): Promise<{ success: boolean; error?: string }> {
+  return userRepo.permanentlyDeleteUser(studentId);
+}

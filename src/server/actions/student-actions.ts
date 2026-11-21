@@ -26,6 +26,13 @@ export async function reportQuestionAction(input: {
     };
   }
 
+  if ((currentUser.status || "").toLowerCase() === "suspended") {
+    return {
+      success: false,
+      error: "Your account has been suspended by an administrator.",
+    };
+  }
+
   if (!input.questionId) {
     return { success: false, error: "Question ID is required." };
   }

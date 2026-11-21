@@ -59,6 +59,13 @@ export async function recordTestAttemptAction(input: {
       };
     }
 
+    if ((user.status || "").toLowerCase() === "suspended") {
+      return {
+        success: false,
+        error: "Your account has been suspended by an administrator. You cannot submit test attempts.",
+      };
+    }
+
     // Authoritative Access Enforcement: Verify student has active enrollment for this exam
     const hasAccess = await canAccessExamination(user.id, input.examId);
     if (!hasAccess) {
