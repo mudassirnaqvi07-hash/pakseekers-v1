@@ -129,8 +129,8 @@ export function StaffSidebar({ user, isOpen, onClose }: StaffSidebarProps) {
         id="staff-sidebar"
         aria-label="Staff navigation"
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 max-w-[85vw] flex flex-col bg-primary shadow-xl",
-          "lg:static lg:translate-x-0 lg:w-60 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 h-dvh w-64 max-w-[85vw] flex flex-col overflow-hidden bg-primary shadow-xl",
+          "lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 lg:w-60 lg:shadow-none",
           isOpen ? "translate-x-0" : "-translate-x-full",
           "transition-transform duration-200 ease-in-out lg:transition-none"
         )}
@@ -147,7 +147,7 @@ export function StaffSidebar({ user, isOpen, onClose }: StaffSidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Staff modules">
+        <nav className="flex-1 min-h-0 overflow-y-auto pt-3 pb-10 px-3" aria-label="Staff modules">
           <ul role="list" className="flex flex-col gap-5">
             {STAFF_NAV_GROUPS.map((group) => {
               const visibleItems = group.items.filter(
