@@ -5,3 +5,4 @@ export { QuizEngine } from "./quiz-engine";
 export { QuizNavigation } from "./quiz-navigation";
 export { QuizProgress } from "./quiz-progress";
 export { ResultSummary } from "./result-summary";
+export { TestPeerStatisticsCard } from "./test-peer-statistics-card";

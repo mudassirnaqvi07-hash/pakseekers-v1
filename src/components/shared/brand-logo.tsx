@@ -200,8 +200,8 @@ export function BrandLogo({
             config.textClass
           )}
         >
-          <span className="text-secondary font-black">PAK</span>
-          <span className={dark ? "text-white" : "text-primary"}>SEEKERS</span>
+          <span className="text-primary font-black">PAK</span>
+          <span className={dark ? "text-white" : "text-secondary"}>SEEKERS</span>
         </span>
 
         {subtitle && (

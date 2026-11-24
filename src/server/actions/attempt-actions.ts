@@ -42,6 +42,7 @@ export async function recordTestAttemptAction(input: {
   subjectId: string;
   topicId?: string;
   selectedAnswers: Record<string, string>;
+  startedAt?: string;
   score?: number;
   totalQuestions?: number;
   correctCount?: number;
@@ -122,6 +123,17 @@ export async function recordTestAttemptAction(input: {
     const evaluation = evaluateQuiz(questions, input.selectedAnswers);
     const now = new Date().toISOString();
 
+    // Validate client-supplied startedAt to calculate accurate duration
+    let validStartedAt = now;
+    if (input.startedAt) {
+      const parsedTime = new Date(input.startedAt).getTime();
+      const nowTime = Date.now();
+      // Valid if it's a real timestamp, not in the future, and within past 24 hours
+      if (!isNaN(parsedTime) && parsedTime <= nowTime && parsedTime >= nowTime - 86400000) {
+        validStartedAt = input.startedAt;
+      }
+    }
+
     // 6. Save attempt to MongoDB Atlas bound to authenticated student ID
     const attempt = await createTestAttempt({
       studentId: user.id,
@@ -141,7 +153,7 @@ export async function recordTestAttemptAction(input: {
       unattemptedCount: evaluation.unattemptedCount,
       percentage: evaluation.percentage,
       questionResults: evaluation.questionResults,
-      startedAt: now,
+      startedAt: validStartedAt,
       completedAt: now,
       status: "completed",
     });
@@ -151,6 +163,9 @@ export async function recordTestAttemptAction(input: {
 
     safeRevalidate("/student/dashboard");
     safeRevalidate("/student/attempts");
+    if (test?.id || input.testId) {
+      safeRevalidate(`/tests/${test?.id || input.testId}`);
+    }
 
     return { success: true, data: attempt };
   } catch (err) {

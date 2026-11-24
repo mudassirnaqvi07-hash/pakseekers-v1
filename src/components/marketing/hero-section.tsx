@@ -36,7 +36,7 @@ export function HeroSection({ currentUser }: HeroSectionProps) {
             </div>
 
             {/* Headline */}
-            <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-text-primary leading-[1.15]">
+            <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-text-primary leading-[1.15]">
               Prepare Smarter.{" "}
               <span className="text-primary underline decoration-accent/40 decoration-4 underline-offset-8">
                 Achieve Further.

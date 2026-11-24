@@ -65,6 +65,7 @@ export function QuizEngine({
   const totalSeconds = durationMinutes && durationMinutes > 0 ? durationMinutes * 60 : null;
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(totalSeconds);
   const hasAutoSubmitted = useRef(false);
+  const startedAtRef = useRef<string>(new Date().toISOString());
 
   // Option selection
   const handleSelectOption = (optionId: string) => {
@@ -107,6 +108,7 @@ export function QuizEngine({
             subjectId: subjectId || "general",
             topicId,
             selectedAnswers: answers,
+            startedAt: startedAtRef.current,
           });
 
           if (res.success) {
@@ -233,16 +235,16 @@ export function QuizEngine({
       {/* Timer Bar (when timed test is active) */}
       {!isSubmitted && secondsRemaining !== null && (
         <div
-          className={`sticky top-16 sm:top-20 z-20 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border shadow-xs transition-colors ${
+          className={`sticky top-16 sm:top-20 z-20 flex items-center justify-between px-3.5 py-2 rounded-xl border shadow-2xs backdrop-blur-md transition-all ${
             isCriticalTime
-              ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 font-bold"
+              ? "bg-red-50/95 border-red-300 text-red-700 font-bold"
               : isLowTime
-              ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 font-medium"
-              : "bg-surface border-border text-text-secondary"
+              ? "bg-amber-50/95 border-amber-300 text-amber-800 font-semibold"
+              : "bg-surface/95 border-border text-text-secondary"
           }`}
         >
-          <div className="flex items-center gap-2 text-xs sm:text-sm">
-            <Clock className="w-4 h-4" />
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-medium">
+            <Clock className={`w-4 h-4 shrink-0 ${isCriticalTime ? "text-red-600 animate-pulse" : isLowTime ? "text-amber-600" : "text-primary"}`} />
             <span>Time Remaining</span>
           </div>
           <div className="text-base sm:text-lg font-mono font-bold tracking-tight">
@@ -411,7 +413,7 @@ export function QuizEngine({
                     size="md"
                     isLoading={isPending}
                     onClick={handleSubmit}
-                    className="bg-secondary hover:bg-secondary-hover w-full xs:w-auto font-bold"
+                    className="w-full xs:w-auto font-bold"
                   >
                     Confirm & Submit
                   </Button>

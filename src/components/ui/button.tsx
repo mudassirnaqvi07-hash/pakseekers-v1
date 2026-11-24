@@ -45,9 +45,9 @@ const variantStyles: Record<ButtonVariant, string> = {
   danger:
     "bg-error text-white hover:bg-red-700 focus-visible:ring-error/40 border-transparent shadow-xs",
   outline:
-    "bg-transparent text-primary border-border hover:bg-background hover:border-primary/40 focus-visible:ring-primary/40",
+    "bg-transparent text-primary border-border hover:bg-primary/5 hover:border-primary/30 focus-visible:ring-primary/40",
   ghost:
-    "bg-transparent text-text-primary border-transparent hover:bg-background focus-visible:ring-primary/40",
+    "bg-transparent text-text-primary border-transparent hover:bg-surface-hover focus-visible:ring-primary/40",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
