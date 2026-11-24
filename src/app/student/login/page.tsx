@@ -22,16 +22,17 @@ export default async function StudentLoginPage({
   const { callbackUrl, verified } = await searchParams;
   const user = await getCurrentUser();
 
-  if (user) {
-    if (user.role === "student") {
-      if (isSafeStudentCallbackUrl(callbackUrl)) {
-        redirect(callbackUrl!.trim());
-      }
-      redirect("/student/dashboard");
-    } else if (user.role === "admin") {
-      redirect("/admin/dashboard");
+  // If already authenticated as a student, forward directly to student dashboard
+  if (user && user.role === "student") {
+    if (isSafeStudentCallbackUrl(callbackUrl)) {
+      redirect(callbackUrl!.trim());
     }
+    redirect("/student/dashboard");
   }
+
+  // NOTE: If currently authenticated as an admin in another tab/context, DO NOT auto-redirect to admin dashboard.
+  // The user explicitly navigated to the student sign-in portal to authenticate with a student account.
+  const activeAdminEmail = user && user.role === "admin" ? user.email : null;
 
   return (
     <div className="w-full max-w-md my-auto py-8">
@@ -46,6 +47,12 @@ export default async function StudentLoginPage({
             : "Access your personalized test dashboard and attempt history"}
         </p>
       </div>
+
+      {activeAdminEmail && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-900 text-xs">
+          <span className="font-semibold">Switching Accounts:</span> Currently active administrator session detected ({activeAdminEmail}). Signing in with student credentials will replace this session and open the Student Dashboard.
+        </div>
+      )}
 
       <Card className="shadow-sm">
         <CardContent className="p-6">

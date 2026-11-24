@@ -14,6 +14,18 @@ import type { SafeUser, UserSession } from "@/types";
 export const SESSION_COOKIE_NAME = "pakseekers_session";
 
 /**
+ * Retrieves the raw session token from HTTP-only cookie.
+ */
+export async function getCurrentSessionToken(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    return cookieStore.get(SESSION_COOKIE_NAME)?.value || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Retrieves the active session from HTTP-only cookie.
  */
 export async function getCurrentSession(): Promise<UserSession | null> {

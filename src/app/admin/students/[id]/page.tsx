@@ -9,13 +9,14 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { requireAdmin } from "@/server/auth/session";
-import { getStudentWithDetails } from "@/server/services/user-service";
+import { getStudentWithDetails, getStudentActiveSessions } from "@/server/services/user-service";
 import { getAllExams } from "@/server/services/content-service";
 import { getStudentEnrollments } from "@/server/repositories/enrollment-repository";
 import { Button, Badge, Card } from "@/components/ui";
 import { StudentStatusToggle } from "@/features/admin/components/student-status-toggle";
 import { StudentEditForm } from "@/features/admin/components/student-edit-form";
 import { StudentEnrollmentsCard } from "@/features/admin/components/student-enrollments-card";
+import { StudentAdminSessionsCard } from "@/features/admin/components/student-admin-sessions-card";
 import type { Exam, TestAttempt } from "@/types";
 
 export const metadata: Metadata = {
@@ -30,10 +31,11 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
   await requireAdmin();
   const { id } = await params;
 
-  const [studentData, exams, enrollments] = await Promise.all([
+  const [studentData, exams, enrollments, activeSessions] = await Promise.all([
     getStudentWithDetails(id),
     getAllExams(),
     getStudentEnrollments(id),
+    getStudentActiveSessions(id),
   ]);
 
   if (!studentData) {
@@ -171,6 +173,14 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
         </h3>
         <StudentEditForm student={student} />
       </Card>
+
+      {/* Active Device Sessions & Limits Management */}
+      <StudentAdminSessionsCard
+        studentId={student.id}
+        studentName={student.name}
+        initialSessions={activeSessions}
+        initialMaxDevices={student.maxDevices ?? 2}
+      />
 
       {/* Test Attempt History */}
       <Card noPadding className="overflow-hidden">

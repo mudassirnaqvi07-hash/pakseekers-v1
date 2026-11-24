@@ -138,12 +138,17 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
                         {student.city || "—"}
                       </td>
                       <td className="py-3 px-3 sm:px-4 whitespace-nowrap">
-                        <Badge
-                          variant={studentStatus === "active" ? "success" : "error"}
-                          className="text-xs capitalize font-semibold"
-                        >
-                          {studentStatus}
-                        </Badge>
+                        <div className="flex flex-col gap-1 items-start">
+                          <Badge
+                            variant={studentStatus === "active" ? "success" : "error"}
+                            className="text-xs capitalize font-semibold"
+                          >
+                            {studentStatus}
+                          </Badge>
+                          <span className="text-[10px] text-text-secondary">
+                            Max {student.maxDevices ?? 2} dev
+                          </span>
+                        </div>
                       </td>
                       <td className="py-3 px-3 sm:px-4 whitespace-nowrap text-xs text-text-secondary">
                         {new Date(student.createdAt).toLocaleDateString("en-US", {

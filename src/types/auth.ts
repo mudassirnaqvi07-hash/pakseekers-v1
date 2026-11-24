@@ -35,6 +35,7 @@ export interface User {
   targetExam?: string;
   educationLevel?: string;
   city?: string;
+  maxDevices?: number;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -45,12 +46,38 @@ export interface User {
  */
 export type SafeUser = Omit<User, "passwordHash" | "emailVerificationTokenHash" | "otpCodeHash">;
 
+export type DeviceType = "desktop" | "mobile" | "tablet";
+export type SessionStatus = "active" | "revoked" | "expired";
+
 export interface UserSession {
+  id?: string;
   token: string;
   userId: string;
   role: UserRole;
+  deviceId?: string;
+  deviceName?: string;
+  deviceType?: DeviceType;
+  browser?: string;
+  operatingSystem?: string;
   createdAt: string;
+  lastActiveAt?: string;
   expiresAt: string;
+  revokedAt?: string | null;
+  status?: SessionStatus;
+  isCurrent?: boolean;
+}
+
+export interface UserDeviceSession {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  deviceType: DeviceType;
+  browser: string;
+  operatingSystem: string;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
 }
 
 export interface TestAttempt {
