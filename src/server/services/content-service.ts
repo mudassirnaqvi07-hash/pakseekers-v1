@@ -195,7 +195,7 @@ export async function getEnrolledTests(
 ): Promise<Test[]> {
   if (!studentId) return [];
 
-  const activeEnrollments = await getStudentEnrollments(studentId, "ACTIVE");
+  const activeEnrollments = await getStudentEnrollments(studentId, "APPROVED");
   if (activeEnrollments.length === 0) {
     return [];
   }

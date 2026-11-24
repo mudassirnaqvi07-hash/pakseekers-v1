@@ -19,6 +19,9 @@ import {
 } from "@/server/services/content-service";
 import { Button, Badge } from "@/components/ui";
 import { getCurrentUser } from "@/server/auth/session";
+import { canAccessExamination } from "@/server/services/enrollment-service";
+import { findEnrollment } from "@/server/repositories/enrollment-repository";
+import { EnrollmentAccessGate } from "@/features/exams/components/enrollment-access-gate";
 
 interface TopicDetailPageProps {
   params: Promise<{ examId: string; topicId: string }>;
@@ -54,11 +57,64 @@ export default async function TopicDetailPage({
     notFound();
   }
 
-  const subject = await getSubjectById(topic.subjectId);
-  const questions = await getQuestionsByTopicId(topic.id);
-  const tests = await getTestsByTopicId(topic.id);
+  const [subject, hasAccess, existingEnrollment] = await Promise.all([
+    getSubjectById(topic.subjectId),
+    user ? canAccessExamination(user.id, exam.id) : Promise.resolve(false),
+    user ? findEnrollment(user.id, exam.id) : Promise.resolve(null),
+  ]);
 
-  const isAuthenticated = !!(user && user.role === "student");
+  const [questions, tests] = hasAccess
+    ? await Promise.all([
+        getQuestionsByTopicId(topic.id),
+        getTestsByTopicId(topic.id),
+      ])
+    : [[], []];
+
+  const isAuthenticated = !!(user && (user.role === "student" || user.role === "admin"));
+
+  if (!hasAccess) {
+    return (
+      <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+        <nav
+          aria-label="Breadcrumbs"
+          className="flex items-center gap-2 text-xs text-text-secondary flex-wrap"
+        >
+          <Link href="/exams" className="hover:text-primary transition-colors">
+            Exams
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <Link href={`/exams/${exam.id}`} className="hover:text-primary transition-colors">
+            {exam.code}
+          </Link>
+          {subject && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <Link
+                href={`/exams/${exam.id}/subjects/${subject.id}`}
+                className="hover:text-primary transition-colors"
+              >
+                {subject.title}
+              </Link>
+            </>
+          )}
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="font-semibold text-text-primary truncate">{topic.title}</span>
+        </nav>
+
+        <EnrollmentAccessGate
+          examId={exam.id}
+          examTitle={exam.title}
+          examCode={exam.code}
+          enrollmentStatus={existingEnrollment?.status ?? null}
+          decisionNotes={existingEnrollment?.decisionNotes ?? null}
+          isAuthenticated={!!user}
+          userRole={user?.role ?? null}
+          callbackUrl={`/exams/${exam.id}/topics/${topic.id}`}
+          resourceLabel="topic questions, explanations, and curriculum tests"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto">

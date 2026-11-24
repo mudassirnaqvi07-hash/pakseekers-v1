@@ -45,7 +45,9 @@ import type {
   UserSession,
   StudentProfile,
   DeviceType,
+  Permission,
 } from "@/types";
+import { getEffectivePermissions, normalizeUserRole } from "@/lib/auth/permissions";
 
 export interface AuthSuccessResult {
   user: SafeUser;
@@ -101,9 +103,10 @@ export async function authenticateCredentials(
 
   // 2. Fetch user with password hash
   const user = await findUserWithPasswordByEmail(normalizedEmail);
+  const actualRole = user ? normalizeUserRole(user.role) : null;
 
   // Constant-time generic error response to eliminate account enumeration
-  if (!user || (expectedRole && user.role !== expectedRole)) {
+  if (!user || (expectedRole && actualRole !== normalizeUserRole(expectedRole))) {
     await recordFailedAttempt(rateLimitKey);
     return {
       success: false,
@@ -111,12 +114,16 @@ export async function authenticateCredentials(
     };
   }
 
-  // Account suspension enforcement
+  // Account suspension / deactivation enforcement
   if ((user.status || "").toLowerCase() === "suspended") {
+    const suspensionMessage =
+      actualRole === "staff"
+        ? "Your staff account has been deactivated by an administrator. Please contact support."
+        : "Your account has been suspended by an administrator. Please contact support.";
     return {
       success: false,
       failure: {
-        error: "Your account has been suspended by an administrator. Please contact support.",
+        error: suspensionMessage,
       },
     };
   }
@@ -131,8 +138,8 @@ export async function authenticateCredentials(
     };
   }
 
-  // 4. Email verification enforcement: Unverified students cannot log in
-  if (user.role === "student" && user.isEmailVerified === false) {
+  // 4. Email verification enforcement: Unverified students and staff cannot log in
+  if ((actualRole === "student" || actualRole === "staff") && user.isEmailVerified === false) {
     return {
       success: false,
       failure: {
@@ -148,7 +155,7 @@ export async function authenticateCredentials(
 
   // 6. Issue fresh session with device limit enforcement for students
   let session: UserSession;
-  if (user.role === "student") {
+  if (actualRole === "student") {
     const sessionRes = await createStudentSessionWithLimit(user.id, device);
     if (!sessionRes.success || !sessionRes.session) {
       return {
@@ -165,16 +172,20 @@ export async function authenticateCredentials(
     }
     session = sessionRes.session;
   } else {
-    // Administrators have no device limits
-    session = await createSession(user.id, user.role, device);
+    // Administrators and Staff create standard server sessions with device tracking
+    session = await createSession(user.id, actualRole!, device);
   }
 
-  // 7. Return sanitized SafeUser
+  // 7. Return sanitized SafeUser with resolved effective permissions
   const safeUser: SafeUser = {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: user.role,
+    role: actualRole!,
+    status: user.status || "active",
+    permissions: getEffectivePermissions({ role: actualRole!, permissions: user.permissions }),
+    staffTitle: user.staffTitle,
+    department: user.department,
     isEmailVerified: user.isEmailVerified,
     profile: user.profile,
     createdAt: user.createdAt,
@@ -293,7 +304,75 @@ export async function registerNewStudent(input: {
 }
 
 /**
- * Verifies a student email address using a 6-digit OTP code.
+ * Creates a new Staff account with pending email verification (isEmailVerified = false),
+ * generates a cryptographically secure 6-digit OTP using the exact Student verification mechanism,
+ * and dispatches the verification code email via SMTP.
+ */
+export async function registerStaffByAdmin(input: {
+  name: string;
+  email: string;
+  password: string;
+  staffTitle?: string;
+  department?: string;
+  permissions?: Permission[];
+  createdBy?: string;
+}): Promise<{ user: SafeUser; emailSent: boolean }> {
+  const normalizedEmail = input.email.trim().toLowerCase();
+  const existing = await findUserByEmail(normalizedEmail);
+  if (existing) {
+    throw new Error(`User with email "${normalizedEmail}" already exists.`);
+  }
+
+  // Reuse identical 6-digit OTP generation, SHA-256 hashing, and 10-minute expiration
+  const rawOtp = generateOtp();
+  const otpHash = hashOtp(rawOtp);
+  const expirationMinutes = 10;
+  const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
+  const now = new Date();
+
+  const newUser = await createUser({
+    name: input.name,
+    email: normalizedEmail,
+    password: input.password,
+    role: "staff",
+    status: "active",
+    staffTitle: input.staffTitle,
+    department: input.department,
+    permissions: input.permissions,
+    createdBy: input.createdBy,
+    isEmailVerified: false,
+    otpCodeHash: otpHash,
+    otpExpiresAt: expiresAt,
+    otpLastSentAt: now,
+    otpAttempts: 0,
+  });
+
+  let emailSent = false;
+  try {
+    const emailResult = await sendVerificationEmail({
+      to: normalizedEmail,
+      name: input.name,
+      otp: rawOtp,
+      expiresInMinutes: expirationMinutes,
+      roleLabel: "staff",
+    });
+    emailSent = emailResult.success;
+    if (!emailSent) {
+      await clearUserOtp(newUser.id);
+    }
+  } catch (emailErr) {
+    console.error("Failed to send staff verification email on creation:", emailErr);
+    await clearUserOtp(newUser.id).catch(() => {});
+  }
+
+  return {
+    user: newUser,
+    emailSent,
+  };
+}
+
+/**
+ * Verifies a student or staff email address using a 6-digit OTP code.
  * Single-use: atomically sets isEmailVerified = true and clears the OTP.
  */
 export async function verifyStudentOtp(
@@ -360,10 +439,13 @@ export async function verifyStudentOtp(
     };
   }
 
+  const isStaff = result.user?.role === "staff";
   return {
     success: true,
     message: result.reason === "already_verified"
       ? "Your account is already verified! You can log in directly."
+      : isStaff
+      ? "Your email has been verified successfully! You can now log in to your staff portal account."
       : "Your email has been verified successfully! You can now log in to your student account.",
     user: result.user,
   };
@@ -440,8 +522,8 @@ export async function resendStudentVerificationOtp(rawEmail: string): Promise<{
   const user = await findUserWithPasswordByEmail(normalizedEmail);
 
   // Account enumeration defense:
-  // Return identical generic response if user doesn't exist or isn't a student
-  if (!user || user.role !== "student") {
+  // Return identical generic response if user doesn't exist or isn't student/staff
+  if (!user || (user.role !== "student" && user.role !== "staff")) {
     await recordFailedAttempt(rateLimitKey);
     return {
       success: true,
@@ -489,6 +571,7 @@ export async function resendStudentVerificationOtp(rawEmail: string): Promise<{
     name: user.name,
     otp: rawOtp,
     expiresInMinutes: expirationMinutes,
+    roleLabel: user.role === "staff" ? "staff" : "student",
   });
 
   if (!emailResult.success) {

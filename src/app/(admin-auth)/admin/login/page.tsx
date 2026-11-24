@@ -25,9 +25,10 @@ export default async function AdminLoginPage() {
     redirect("/admin/dashboard");
   }
 
-  // NOTE: If currently authenticated as a student in another tab/context, DO NOT auto-redirect to student dashboard.
+  // NOTE: If currently authenticated as a student or staff in another tab/context, DO NOT auto-redirect to their dashboard.
   // The user explicitly navigated to the admin login portal to authenticate as an administrator.
-  const activeStudentEmail = user && user.role === "student" ? user.email : null;
+  const activeOtherSession =
+    user && user.role !== "admin" ? { email: user.email, role: user.role } : null;
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -42,9 +43,11 @@ export default async function AdminLoginPage() {
           </p>
         </div>
 
-        {activeStudentEmail && (
+        {activeOtherSession && (
           <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-900 text-xs">
-            <span className="font-semibold">Switching Accounts:</span> Currently active student session detected ({activeStudentEmail}). Signing in with administrator credentials will replace this session and open the Admin Dashboard.
+            <span className="font-semibold">Switching Accounts:</span> Currently active{" "}
+            <span className="uppercase font-bold">{activeOtherSession.role}</span> session detected (
+            {activeOtherSession.email}). Signing in with administrator credentials will replace this session and open the Admin Dashboard.
           </div>
         )}
 

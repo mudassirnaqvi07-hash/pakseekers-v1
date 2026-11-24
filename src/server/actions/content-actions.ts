@@ -9,9 +9,9 @@
  */
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import type { ActionResult, Exam, Subject, ExamSubject, Topic, Question, Test, Section, Lesson } from "@/types";
+import type { ActionResult, Exam, Subject, ExamSubject, Topic, Question, Test, Section, Lesson, Permission } from "@/types";
 import * as contentRepo from "@/server/repositories/content-repository";
-import { getCurrentUser } from "@/server/auth/session";
+import { verifyPermissionAuth } from "@/server/auth/session";
 import {
   examFormSchema,
   subjectFormSchema,
@@ -37,6 +37,13 @@ function revalidateAllPaths(): void {
   revalidatePath("/admin/sections");
   revalidatePath("/admin/lessons");
   revalidatePath("/admin/mock-tests");
+  revalidatePath("/staff");
+  revalidatePath("/staff/dashboard");
+  revalidatePath("/staff/exams");
+  revalidatePath("/staff/subjects");
+  revalidatePath("/staff/topics");
+  revalidatePath("/staff/questions");
+  revalidatePath("/staff/tests");
   revalidatePath("/exams");
   revalidatePath("/student/tests");
   try {
@@ -48,14 +55,13 @@ function revalidateAllPaths(): void {
   }
 }
 
-async function verifyAdminAuth(): Promise<ActionResult<never> | null> {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "admin") {
-    return {
-      success: false,
-      error: "Unauthorized: Administrator privileges are required to perform this action.",
-    };
-  }
+async function verifyContentPermission(
+  requiredPermission: Permission | Permission[]
+): Promise<ActionResult<never> | null> {
+  const auth = await verifyPermissionAuth(requiredPermission, {
+    allowedRoles: ["admin", "staff"],
+  });
+  if ("error" in auth) return auth.error;
   return null;
 }
 
@@ -66,7 +72,7 @@ async function verifyAdminAuth(): Promise<ActionResult<never> | null> {
 export async function createExamAction(
   rawInput: unknown
 ): Promise<ActionResult<Exam>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("EXAM_CREATE");
   if (authError) return authError;
 
   const parsed = examFormSchema.safeParse(rawInput);
@@ -91,7 +97,7 @@ export async function updateExamAction(
   id: string,
   rawInput: unknown
 ): Promise<ActionResult<Exam>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("EXAM_EDIT");
   if (authError) return authError;
 
   const parsed = examFormSchema.partial().safeParse(rawInput);
@@ -116,7 +122,7 @@ export async function updateExamAction(
 }
 
 export async function deleteExamAction(id: string): Promise<ActionResult<void>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("EXAM_DELETE");
   if (authError) return authError;
 
   try {
@@ -141,7 +147,7 @@ export async function deleteExamAction(id: string): Promise<ActionResult<void>> 
 export async function createSubjectAction(
   rawInput: unknown
 ): Promise<ActionResult<Subject>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("SUBJECT_CREATE");
   if (authError) return authError;
 
   const parsed = subjectFormSchema.safeParse(rawInput);
@@ -175,7 +181,7 @@ export async function updateSubjectAction(
   id: string,
   rawInput: unknown
 ): Promise<ActionResult<Subject>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("SUBJECT_EDIT");
   if (authError) return authError;
 
   const parsed = subjectFormSchema.partial().safeParse(rawInput);
@@ -200,7 +206,7 @@ export async function updateSubjectAction(
 }
 
 export async function deleteSubjectAction(id: string): Promise<ActionResult<void>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("SUBJECT_DELETE");
   if (authError) return authError;
 
   try {
@@ -224,7 +230,7 @@ export async function assignSubjectToExamAction(
   displayOrder?: number,
   weightage?: number
 ): Promise<ActionResult<ExamSubject>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission(["EXAM_EDIT", "SUBJECT_EDIT"]);
   if (authError) return authError;
 
   try {
@@ -249,7 +255,7 @@ export async function removeSubjectFromExamAction(
   examId: string,
   subjectId: string
 ): Promise<ActionResult<void>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission(["EXAM_EDIT", "SUBJECT_EDIT"]);
   if (authError) return authError;
 
   try {
@@ -272,7 +278,7 @@ export async function updateExamSubjectOrderAction(
   examId: string,
   orderList: { subjectId: string; displayOrder: number }[]
 ): Promise<ActionResult<void>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission(["EXAM_EDIT", "SUBJECT_EDIT"]);
   if (authError) return authError;
 
   try {
@@ -295,7 +301,7 @@ export async function updateExamSubjectOrderAction(
 export async function createTopicAction(
   rawInput: unknown
 ): Promise<ActionResult<Topic>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_CREATE");
   if (authError) return authError;
 
   const parsed = topicFormSchema.safeParse(rawInput);
@@ -329,7 +335,7 @@ export async function updateTopicAction(
   id: string,
   rawInput: unknown
 ): Promise<ActionResult<Topic>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_EDIT");
   if (authError) return authError;
 
   const parsed = topicFormSchema.partial().safeParse(rawInput);
@@ -354,7 +360,7 @@ export async function updateTopicAction(
 }
 
 export async function deleteTopicAction(id: string): Promise<ActionResult<void>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_DELETE");
   if (authError) return authError;
 
   try {
@@ -379,7 +385,7 @@ export async function deleteTopicAction(id: string): Promise<ActionResult<void>>
 export async function createQuestionAction(
   rawInput: unknown
 ): Promise<ActionResult<Question>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("QUESTION_CREATE");
   if (authError) return authError;
 
   const parsed = questionFormSchema.safeParse(rawInput);
@@ -413,7 +419,7 @@ export async function updateQuestionAction(
   id: string,
   rawInput: unknown
 ): Promise<ActionResult<Question>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("QUESTION_EDIT");
   if (authError) return authError;
 
   const parsed = questionFormSchema.partial().safeParse(rawInput);
@@ -440,7 +446,7 @@ export async function updateQuestionAction(
 export async function deleteQuestionAction(
   id: string
 ): Promise<ActionResult<void>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("QUESTION_DELETE");
   if (authError) return authError;
 
   try {
@@ -465,13 +471,18 @@ export async function deleteQuestionAction(
 export async function createTestAction(
   rawInput: unknown
 ): Promise<ActionResult<Test>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_CREATE");
   if (authError) return authError;
 
   const parsed = testFormSchema.safeParse(rawInput);
   if (!parsed.success) {
     const errorMsg = parsed.error.issues.map((i) => i.message).join("; ");
     return { success: false, error: errorMsg };
+  }
+
+  if (parsed.data.status === "published") {
+    const pubError = await verifyContentPermission("TEST_PUBLISH");
+    if (pubError) return pubError;
   }
 
   try {
@@ -490,13 +501,21 @@ export async function updateTestAction(
   id: string,
   rawInput: unknown
 ): Promise<ActionResult<Test>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_EDIT");
   if (authError) return authError;
 
   const parsed = testFormSchema.partial().safeParse(rawInput);
   if (!parsed.success) {
     const errorMsg = parsed.error.issues.map((i) => i.message).join("; ");
     return { success: false, error: errorMsg };
+  }
+
+  if (parsed.data.status === "published") {
+    const existing = await contentRepo.getTestById(id);
+    if (existing && existing.status !== "published") {
+      const pubError = await verifyContentPermission("TEST_PUBLISH");
+      if (pubError) return pubError;
+    }
   }
 
   try {
@@ -517,7 +536,7 @@ export async function updateTestAction(
 export async function togglePublishTestAction(
   id: string
 ): Promise<ActionResult<Test>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_PUBLISH");
   if (authError) return authError;
 
   try {
@@ -536,7 +555,7 @@ export async function togglePublishTestAction(
 }
 
 export async function deleteTestAction(id: string): Promise<ActionResult<void>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_DELETE");
   if (authError) return authError;
 
   try {
@@ -561,14 +580,9 @@ export async function deleteTestAction(id: string): Promise<ActionResult<void>> 
 export async function importQuizAction(
   rawInput: unknown
 ): Promise<ActionResult<Test>> {
-  // 1. Authoritative Admin Guard
-  const user = await getCurrentUser();
-  if (!user || user.role !== "admin") {
-    return {
-      success: false,
-      error: "Unauthorized: Administrator privileges are required to import quizzes.",
-    };
-  }
+  // 1. Authoritative RBAC Permission Guard
+  const authError = await verifyContentPermission("QUESTION_IMPORT");
+  if (authError) return authError;
 
   // 2. Validate input schema
   const parsedForm = importQuizActionSchema.safeParse(rawInput);
@@ -646,6 +660,11 @@ export async function importQuizAction(
   const finalDifficulty = difficulty || parsedQuiz.difficulty;
   const finalStatus = status || parsedQuiz.status;
 
+  if (finalStatus === "published") {
+    const pubError = await verifyContentPermission("TEST_PUBLISH");
+    if (pubError) return pubError;
+  }
+
   // 5. Atomic persistence
   try {
     const importResult = await contentRepo.importQuizWithQuestions({
@@ -682,7 +701,7 @@ export async function importQuizAction(
 export async function createSectionAction(
   formData: FormData
 ): Promise<ActionResult<Section>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_CREATE");
   if (authError) return authError;
 
   const rawData = {
@@ -716,7 +735,7 @@ export async function updateSectionAction(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Section>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_EDIT");
   if (authError) return authError;
 
   if (!id) return { success: false, error: "Section ID is required." };
@@ -752,7 +771,7 @@ export async function updateSectionAction(
 export async function deleteSectionAction(
   id: string
 ): Promise<ActionResult<{ id: string }>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_DELETE");
   if (authError) return authError;
 
   if (!id) return { success: false, error: "Section ID is required." };
@@ -775,7 +794,7 @@ export async function deleteSectionAction(
 export async function createLessonAction(
   formData: FormData
 ): Promise<ActionResult<Lesson>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_CREATE");
   if (authError) return authError;
 
   const rawObjectives = formData.get("learningObjectives");
@@ -828,7 +847,7 @@ export async function updateLessonAction(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Lesson>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_EDIT");
   if (authError) return authError;
 
   if (!id) return { success: false, error: "Lesson ID is required." };
@@ -883,7 +902,7 @@ export async function updateLessonAction(
 export async function deleteLessonAction(
   id: string
 ): Promise<ActionResult<{ id: string }>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_DELETE");
   if (authError) return authError;
 
   if (!id) return { success: false, error: "Lesson ID is required." };
@@ -902,7 +921,7 @@ export async function deleteLessonAction(
 export async function toggleLessonPublishAction(
   id: string
 ): Promise<ActionResult<Lesson>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TOPIC_EDIT");
   if (authError) return authError;
 
   if (!id) return { success: false, error: "Lesson ID is required." };
@@ -925,8 +944,14 @@ export async function toggleLessonPublishAction(
 export async function createMockTestAction(
   formData: FormData
 ): Promise<ActionResult<Test>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_CREATE");
   if (authError) return authError;
+
+  const rawStatus = (formData.get("status") || "draft").toString();
+  if (rawStatus === "published") {
+    const pubError = await verifyContentPermission("TEST_PUBLISH");
+    if (pubError) return pubError;
+  }
 
   const rawQuestionIds = formData.get("questionIds");
   let questionIds: string[] = [];
@@ -978,8 +1003,17 @@ export async function updateMockTestAction(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Test>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_EDIT");
   if (authError) return authError;
+
+  const rawStatus = (formData.get("status") || "draft").toString();
+  if (rawStatus === "published") {
+    const existing = await contentRepo.getTestById(id);
+    if (existing && existing.status !== "published") {
+      const pubError = await verifyContentPermission("TEST_PUBLISH");
+      if (pubError) return pubError;
+    }
+  }
 
   if (!id) return { success: false, error: "Test ID is required." };
 
@@ -1033,7 +1067,7 @@ export async function updateMockTestAction(
 export async function deleteMockTestAction(
   id: string
 ): Promise<ActionResult<{ id: string }>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_DELETE");
   if (authError) return authError;
 
   if (!id) return { success: false, error: "Test ID is required." };
@@ -1052,7 +1086,7 @@ export async function deleteMockTestAction(
 export async function toggleMockTestPublishAction(
   id: string
 ): Promise<ActionResult<Test>> {
-  const authError = await verifyAdminAuth();
+  const authError = await verifyContentPermission("TEST_PUBLISH");
   if (authError) return authError;
 
   if (!id) return { success: false, error: "Test ID is required." };

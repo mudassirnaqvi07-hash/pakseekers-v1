@@ -8,6 +8,10 @@ import {
   getTopicsBySubjectId,
 } from "@/server/services/content-service";
 import { TopicCard } from "@/features/exams/components/topic-card";
+import { EnrollmentAccessGate } from "@/features/exams/components/enrollment-access-gate";
+import { getCurrentUser } from "@/server/auth/session";
+import { canAccessExamination } from "@/server/services/enrollment-service";
+import { findEnrollment } from "@/server/repositories/enrollment-repository";
 import { Button } from "@/components/ui";
 
 interface SubjectDetailPageProps {
@@ -37,15 +41,22 @@ export default async function SubjectDetailPage({
   params,
 }: SubjectDetailPageProps) {
   const { examId, subjectId } = await params;
-  const [exam, subject, topics] = await Promise.all([
+  const [exam, subject, user] = await Promise.all([
     getExamById(examId),
     getSubjectById(subjectId),
-    getTopicsBySubjectId(subjectId),
+    getCurrentUser(),
   ]);
 
   if (!exam || !subject) {
     notFound();
   }
+
+  const [hasAccess, existingEnrollment] = await Promise.all([
+    user ? canAccessExamination(user.id, exam.id) : Promise.resolve(false),
+    user ? findEnrollment(user.id, exam.id) : Promise.resolve(null),
+  ]);
+
+  const topics = hasAccess ? await getTopicsBySubjectId(subjectId) : [];
 
   return (
     <div className="flex flex-col gap-8">
@@ -85,28 +96,42 @@ export default async function SubjectDetailPage({
         </div>
       </div>
 
-      {/* Topics Grid */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-text-primary">
-              Curriculum Topics
-            </h2>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Choose a topic to practice focused multiple-choice questions.
-            </p>
+      {/* Topics Grid or Enrollment Gate */}
+      {!hasAccess ? (
+        <EnrollmentAccessGate
+          examId={exam.id}
+          examTitle={exam.title}
+          examCode={exam.code}
+          enrollmentStatus={existingEnrollment?.status ?? null}
+          decisionNotes={existingEnrollment?.decisionNotes ?? null}
+          isAuthenticated={!!user}
+          userRole={user?.role ?? null}
+          callbackUrl={`/exams/${exam.id}/subjects/${subject.id}`}
+          resourceLabel="curriculum topics, questions, and practice tests"
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-text-primary">
+                Curriculum Topics
+              </h2>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Choose a topic to practice focused multiple-choice questions.
+              </p>
+            </div>
+            <span className="text-xs font-medium text-text-secondary bg-surface border border-border px-3 py-1 rounded-full">
+              {topics.length} Topics
+            </span>
           </div>
-          <span className="text-xs font-medium text-text-secondary bg-surface border border-border px-3 py-1 rounded-full">
-            {topics.length} Topics
-          </span>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {topics.map((topic) => (
-            <TopicCard key={topic.id} topic={topic} examId={exam.id} />
-          ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {topics.map((topic) => (
+              <TopicCard key={topic.id} topic={topic} examId={exam.id} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

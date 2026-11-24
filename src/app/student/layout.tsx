@@ -45,13 +45,21 @@ export default async function StudentPortalLayout({
     <div className="min-h-screen flex flex-col bg-background text-text-primary">
       <header className="border-b border-border bg-surface">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <BrandLogo variant="horizontal" size="sm" href="/" subtitle="Student Portal" />
-          <Link
-            href="/"
-            className="text-xs font-semibold text-text-secondary hover:text-primary transition-colors"
-          >
-            ← Return to Homepage
-          </Link>
+          <BrandLogo variant="horizontal" size="sm" href="/student/login" subtitle="Student Portal" />
+          <div className="flex items-center gap-4">
+            <Link
+              href="/explore"
+              className="text-xs font-semibold text-text-secondary hover:text-primary transition-colors"
+            >
+              Explore Exams
+            </Link>
+            <Link
+              href="/about"
+              className="text-xs font-semibold text-text-secondary hover:text-primary transition-colors"
+            >
+              About
+            </Link>
+          </div>
         </div>
       </header>
 

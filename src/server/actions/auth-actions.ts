@@ -26,7 +26,9 @@ import {
   getCurrentSessionToken,
   getCurrentUser,
   isSafeStudentCallbackUrl,
+  isSafeStaffCallbackUrl,
 } from "@/server/auth/session";
+import { getDashboardRouteForRole } from "@/lib/auth/permissions";
 import { resolveCurrentDeviceInfo } from "@/server/auth/device";
 import {
   getStudentActiveSessions,
@@ -100,13 +102,14 @@ export async function loginStudentAction(
     }
 
     safeRevalidate("/student/dashboard");
+    safeRevalidate("/staff/dashboard");
     safeRevalidate("/admin/dashboard");
     safeRevalidate("/");
 
     const destination =
       callbackUrl && isSafeStudentCallbackUrl(callbackUrl)
         ? callbackUrl.trim()
-        : "/student/dashboard";
+        : getDashboardRouteForRole(authResult.data.user.role);
 
     return { success: true, data: { redirectUrl: destination } };
   } catch (err) {
@@ -199,7 +202,7 @@ export async function registerStudentAction(
  */
 export async function verifyOtpAction(
   rawInput: unknown
-): Promise<ActionResult<{ message: string; redirectUrl: string }>> {
+): Promise<ActionResult<{ message: string; redirectUrl: string; role?: string }>> {
   try {
     const parsed = verifyOtpSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -221,13 +224,22 @@ export async function verifyOtpAction(
     }
 
     safeRevalidate("/student/login");
+    safeRevalidate("/staff/login");
+    safeRevalidate("/admin/staff");
     safeRevalidate("/verify-email");
+
+    const verifiedRole = result.user?.role;
+    const redirectUrl =
+      verifiedRole === "staff"
+        ? "/staff/login?verified=true"
+        : "/student/login?verified=true";
 
     return {
       success: true,
       data: {
         message: result.message,
-        redirectUrl: "/student/login?verified=true",
+        redirectUrl,
+        role: verifiedRole,
       },
     };
   } catch (err) {
@@ -324,8 +336,90 @@ export async function logoutStudentAction(): Promise<void> {
     await invalidateSession(session.token);
   }
   await clearSessionCookie();
+  safeRevalidate("/student/dashboard");
+  safeRevalidate("/staff/dashboard");
+  safeRevalidate("/admin/dashboard");
   safeRevalidate("/");
   redirect("/student/login");
+}
+
+// ---------------------------------------------------------------------------
+// Staff Authentication Actions
+// ---------------------------------------------------------------------------
+
+export async function loginStaffAction(
+  rawInput: unknown
+): Promise<ActionResult<{ redirectUrl: string }>> {
+  const parsed = loginSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: "Invalid email or password.",
+    };
+  }
+
+  const { email, password, callbackUrl } = parsed.data;
+
+  try {
+    // 1. Resolve device metadata
+    const deviceInfo = await resolveCurrentDeviceInfo();
+
+    // 2. Authoritative authentication via auth-service (staff role enforced server-side)
+    const authResult = await authenticateCredentials(email, password, "staff", deviceInfo);
+    if (!authResult.success) {
+      return {
+        success: false,
+        error: authResult.failure.error,
+        isEmailUnverified: authResult.failure.isEmailUnverified,
+        unverifiedEmail: authResult.failure.unverifiedEmail,
+        retryAfterSeconds: authResult.failure.retryAfterSeconds,
+      };
+    }
+
+    // 3. Multi-role account switching: invalidate any prior session and clear existing cookie
+    const existingSession = await getCurrentSession();
+    if (existingSession) {
+      await invalidateSession(existingSession.token);
+    }
+    await clearSessionCookie();
+
+    // 4. Set secure HTTP-only cookie with the fresh staff session token
+    const cookieSet = await setSessionCookie(authResult.data.session.token);
+    if (!cookieSet) {
+      throw new Error("Unable to establish staff session.");
+    }
+
+    safeRevalidate("/staff/dashboard");
+    safeRevalidate("/admin/dashboard");
+    safeRevalidate("/student/dashboard");
+    safeRevalidate("/");
+
+    const destination =
+      callbackUrl && isSafeStaffCallbackUrl(callbackUrl)
+        ? callbackUrl.trim()
+        : getDashboardRouteForRole(authResult.data.user.role);
+
+    return { success: true, data: { redirectUrl: destination } };
+  } catch (error) {
+    console.error("Staff login failed:", error);
+    return {
+      success: false,
+      error: "Unable to sign in right now. Please try again.",
+    };
+  }
+}
+
+export async function logoutStaffAction(): Promise<void> {
+  const session = await getCurrentSession();
+  if (session) {
+    await invalidateSession(session.token);
+  }
+  await clearSessionCookie();
+  safeRevalidate("/staff/dashboard");
+  safeRevalidate("/admin/dashboard");
+  safeRevalidate("/student/dashboard");
+  safeRevalidate("/");
+  redirect("/staff/login");
 }
 
 // ---------------------------------------------------------------------------
@@ -372,10 +466,14 @@ export async function loginAdminAction(
     }
 
     safeRevalidate("/admin/dashboard");
+    safeRevalidate("/staff/dashboard");
     safeRevalidate("/student/dashboard");
     safeRevalidate("/");
 
-    return { success: true, data: { redirectUrl: "/admin/dashboard" } };
+    return {
+      success: true,
+      data: { redirectUrl: getDashboardRouteForRole(authResult.data.user.role) },
+    };
   } catch (error) {
     console.error("Admin login failed:", error);
     return {
@@ -394,6 +492,8 @@ export async function logoutAdminAction(): Promise<void> {
   const entryPath = getAdminEntryPath();
   safeRevalidate(entryPath);
   safeRevalidate("/admin/dashboard");
+  safeRevalidate("/staff/dashboard");
+  safeRevalidate("/student/dashboard");
   safeRevalidate("/");
   redirect(entryPath);
 }

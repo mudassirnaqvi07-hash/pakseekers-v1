@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/server/auth/session";
+import { verifyApiAuth } from "@/server/auth/session";
 import { generatePlatformCsvReport } from "@/server/services/reports-service";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    const auth = await verifyApiAuth({
+      allowedRoles: ["admin"],
+      requiredPermissions: "ANALYTICS_VIEW",
+    });
+    if ("response" in auth) {
+      return auth.response;
+    }
 
     const csvContent = await generatePlatformCsvReport();
     const timestamp = new Date().toISOString().split("T")[0];
@@ -19,8 +25,9 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Failed to generate CSV export:", error);
-    return new NextResponse("Unauthorized or export generation failed.", {
-      status: 401,
-    });
+    return NextResponse.json(
+      { error: "Export generation failed." },
+      { status: 500 }
+    );
   }
 }

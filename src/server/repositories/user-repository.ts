@@ -43,7 +43,9 @@ import type {
   WeakAreaItem,
   DeviceType,
   TestPerformanceInsights,
+  Permission,
 } from "@/types";
+import { sanitizeStaffPermissions } from "@/lib/auth/permissions";
 
 // Re-export password helpers for convenience
 export { hashPassword, verifyPassword, hashPasswordSync, verifyPasswordSync };
@@ -104,6 +106,11 @@ export async function createUser(input: {
   name: string;
   password: string;
   role?: UserRole;
+  status?: "active" | "suspended";
+  permissions?: Permission[];
+  staffTitle?: string;
+  department?: string;
+  createdBy?: string;
   isEmailVerified?: boolean;
   otpCodeHash?: string | null;
   otpExpiresAt?: Date | string | null;
@@ -126,12 +133,22 @@ export async function createUser(input: {
 
   const hashedPassword = await hashPassword(input.password);
   const now = new Date().toISOString();
-  const isStudent = (input.role || "student") === "student";
+  const targetRole: UserRole = input.role || "student";
+  const isStudent = targetRole === "student";
   const newUserDoc: UserDoc = {
     id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     email: normalizedEmail,
     name: input.name.trim(),
-    role: input.role || "student",
+    role: targetRole,
+    status: input.status || "active",
+    ...(targetRole === "staff"
+      ? {
+          permissions: sanitizeStaffPermissions(input.permissions),
+          staffTitle: input.staffTitle?.trim() || "Academic Coordinator",
+          department: input.department?.trim() || "Content & Curriculum",
+          ...(input.createdBy ? { createdBy: input.createdBy } : {}),
+        }
+      : {}),
     passwordHash: hashedPassword,
     // By default, students must verify email unless explicitly set (e.g. seed data/admin)
     isEmailVerified: input.isEmailVerified !== undefined ? input.isEmailVerified : !isStudent,
@@ -1353,6 +1370,7 @@ export async function permanentlyDeleteUser(
   // Reset rate limits for the deleted email so future registrations aren't throttled
   try {
     await resetRateLimit(`login:student:${normalizedEmail}`);
+    await resetRateLimit(`login:staff:${normalizedEmail}`);
     await resetRateLimit(`login:user:${normalizedEmail}`);
     await resetRateLimit(`resend-otp:${normalizedEmail}`);
   } catch {
@@ -1360,4 +1378,154 @@ export async function permanentlyDeleteUser(
   }
 
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Admin Staff Management Operations
+// ---------------------------------------------------------------------------
+
+export async function getStaffList(options: {
+  search?: string;
+  status?: string;
+} = {}): Promise<SafeUser[]> {
+  const db = await getMongoDb();
+  const query: Record<string, unknown> = { role: "staff" };
+
+  if (options.status && options.status !== "all") {
+    if (options.status === "active") {
+      query.$or = [{ status: "active" }, { status: { $exists: false } }];
+    } else {
+      query.status = options.status;
+    }
+  }
+
+  if (options.search && options.search.trim().length > 0) {
+    const term = options.search.trim();
+    const searchRegex = { $regex: term, $options: "i" };
+    query.$and = [
+      {
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex },
+          { staffTitle: searchRegex },
+          { department: searchRegex },
+        ],
+      },
+    ];
+  }
+
+  const docs = await db
+    .collection<UserDoc>(COLLECTIONS.USERS)
+    .find(query)
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  return docs.map((doc) => toSafeUser(doc)!);
+}
+
+export async function getStaffById(staffId: string): Promise<SafeUser | null> {
+  if (!staffId) return null;
+  const db = await getMongoDb();
+  const doc = await db.collection<UserDoc>(COLLECTIONS.USERS).findOne({ id: staffId, role: "staff" });
+  return toSafeUser(doc);
+}
+
+export async function updateStaffDetails(
+  staffId: string,
+  input: {
+    name?: string;
+    email?: string;
+    staffTitle?: string;
+    department?: string;
+    password?: string;
+  }
+): Promise<SafeUser | null> {
+  if (!staffId) return null;
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+
+  const setFields: Record<string, unknown> = {
+    updatedAt: now,
+  };
+
+  if (input.name !== undefined && input.name.trim()) {
+    setFields.name = input.name.trim();
+  }
+  if (input.staffTitle !== undefined) {
+    setFields.staffTitle = input.staffTitle.trim() || "Academic Coordinator";
+  }
+  if (input.department !== undefined) {
+    setFields.department = input.department.trim() || "Content & Curriculum";
+  }
+  if (input.email !== undefined && input.email.trim()) {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const conflict = await db.collection<UserDoc>(COLLECTIONS.USERS).findOne({
+      email: normalizedEmail,
+      id: { $ne: staffId },
+    });
+    if (conflict) {
+      throw new Error("Another account already uses this email address.");
+    }
+    setFields.email = normalizedEmail;
+  }
+  if (input.password && input.password.length > 0) {
+    setFields.passwordHash = await hashPassword(input.password);
+  }
+
+  const result = await db.collection<UserDoc>(COLLECTIONS.USERS).findOneAndUpdate(
+    { id: staffId, role: "staff" },
+    { $set: setFields },
+    { returnDocument: "after" }
+  );
+
+  return toSafeUser(result);
+}
+
+export async function updateStaffPermissions(
+  staffId: string,
+  permissions: Permission[]
+): Promise<SafeUser | null> {
+  if (!staffId) return null;
+  const db = await getMongoDb();
+  const sanitized = sanitizeStaffPermissions(permissions);
+
+  const result = await db.collection<UserDoc>(COLLECTIONS.USERS).findOneAndUpdate(
+    { id: staffId, role: "staff" },
+    {
+      $set: {
+        permissions: sanitized,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  return toSafeUser(result);
+}
+
+export async function updateStaffStatus(
+  staffId: string,
+  status: "active" | "suspended"
+): Promise<SafeUser | null> {
+  if (!staffId) return null;
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+
+  const result = await db.collection<UserDoc>(COLLECTIONS.USERS).findOneAndUpdate(
+    { id: staffId, role: "staff" },
+    {
+      $set: {
+        status,
+        updatedAt: now,
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  // Deactivating a Staff account immediately revokes all active sessions
+  if (status === "suspended") {
+    await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).deleteMany({ userId: staffId });
+  }
+
+  return toSafeUser(result);
 }

@@ -22,7 +22,7 @@ export function ExamEnrollmentCard({ details }: ExamEnrollmentCardProps) {
             </span>
             <div className="flex items-center gap-1.5">
               <Badge variant="success" className="text-[10px] py-0 font-bold">
-                Active Track
+                Approved Track
               </Badge>
               <RemoveExamDialog
                 examId={exam.id}
