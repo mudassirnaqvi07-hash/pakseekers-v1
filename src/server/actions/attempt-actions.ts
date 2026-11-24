@@ -95,14 +95,35 @@ export async function recordTestAttemptAction(input: {
           error: "The requested test is not currently available for submission.",
         };
       }
+      // Cross-exam protection: never trust input.examId if test belongs to a different exam
+      if (test.examId.toLowerCase() !== input.examId.toLowerCase()) {
+        const hasTestExamAccess = await canAccessExamination(user.id, test.examId);
+        if (!hasTestExamAccess) {
+          return {
+            success: false,
+            error: "Access denied: Your approved enrollment does not include this test's examination.",
+          };
+        }
+      }
     }
 
     // 3. Resolve display titles server-side — never trust client-supplied labels
     const [exam, subject, topic] = await Promise.all([
-      getExamById(input.examId),
-      getSubjectById(input.subjectId),
+      getExamById(test?.examId || input.examId),
+      getSubjectById(test?.subjectId || input.subjectId),
       input.topicId ? getTopicById(input.topicId) : Promise.resolve(null),
     ]);
+
+    // Cross-exam protection for topic-based practice attempts
+    if (topic && topic.examId.toLowerCase() !== (test?.examId || input.examId).toLowerCase()) {
+      const hasTopicExamAccess = await canAccessExamination(user.id, topic.examId);
+      if (!hasTopicExamAccess) {
+        return {
+          success: false,
+          error: "Access denied: You are not enrolled in the examination for this topic.",
+        };
+      }
+    }
 
     // 4. Retrieve canonical questions from question bank with authoritative answer keys
     let questions: Question[] = [];

@@ -30,6 +30,7 @@ import {
   getEnrolledTests,
 } from "@/server/services/content-service";
 import { getStudentEnrolledExamsDetails } from "@/server/services/enrollment-service";
+import { getStudentEnrollments } from "@/server/repositories/enrollment-repository";
 import { ExamEnrollmentCard } from "@/features/exams/components/exam-enrollment-card";
 
 export const metadata: Metadata = {
@@ -40,12 +41,18 @@ export const metadata: Metadata = {
 export default async function StudentDashboardPage() {
   const user = await requireStudent();
 
-  const [stats, attempts, enrolledDetails, allExams] = await Promise.all([
+  const [stats, attempts, enrolledDetails, allExams, allEnrollments] = await Promise.all([
     getStudentDashboardStats(user.id),
     getStudentAttempts(user.id),
     getStudentEnrolledExamsDetails(user.id),
     getAllExams(),
+    getStudentEnrollments(user.id),
   ]);
+
+  const examById = new Map(allExams.map((e) => [e.id.toLowerCase(), e]));
+  const nonApprovedRequests = allEnrollments.filter(
+    (e) => e.status === "PENDING" || e.status === "REJECTED" || e.status === "REVOKED" || e.status === "REMOVED"
+  );
 
   // Scope subjects and tests strictly to active enrolled examinations
   const hasEnrollments = enrolledDetails.length > 0;
@@ -164,6 +171,67 @@ export default async function StudentDashboardPage() {
                 Explore Examination Tracks
               </Button>
             </Link>
+          </div>
+        )}
+
+        {nonApprovedRequests.length > 0 && (
+          <div className="rounded-xl border border-border bg-surface p-4 sm:p-5 flex flex-col gap-3 shadow-2xs">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <span>Enrollment Request Status ({nonApprovedRequests.length})</span>
+              </h3>
+              <span className="text-[11px] text-text-secondary">
+                Content unlocks after Administrator approval
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {nonApprovedRequests.map((req) => {
+                const exam = examById.get(req.examinationId.toLowerCase());
+                const isPendingReq = req.status === "PENDING";
+                const isRejected = req.status === "REJECTED";
+                return (
+                  <div
+                    key={req.id}
+                    className="rounded-lg border border-border bg-background p-3.5 flex flex-col gap-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px] uppercase">
+                          {exam?.code || req.examinationId}
+                        </span>
+                        <span className="text-xs font-bold text-text-primary truncate">
+                          {exam?.title || req.examinationId}
+                        </span>
+                      </div>
+                      <Badge
+                        variant={isPendingReq ? "warning" : "error"}
+                        className="text-[10px] font-semibold shrink-0"
+                      >
+                        {isPendingReq
+                          ? "Pending Approval"
+                          : isRejected
+                          ? "Rejected"
+                          : "Revoked"}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-text-secondary">
+                      {isPendingReq
+                        ? "Submitted for Administrator review. Subjects and practice tests will unlock once approved."
+                        : isRejected
+                        ? "Your enrollment request was declined by an Administrator."
+                        : "Your access to this examination track was revoked by an Administrator."}
+                    </p>
+                    {req.decisionNotes && !isPendingReq && (
+                      <p className="text-[11px] text-rose-700 font-medium">
+                        Note: {req.decisionNotes}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </section>

@@ -85,6 +85,8 @@ interface QuizImporterProps {
   defaultExamId?: string;
   defaultSubjectId?: string;
   defaultTopicId?: string;
+  basePath?: string;
+  canPublish?: boolean;
   onSubmit: (input: {
     examId: string;
     subjectId: string;
@@ -105,6 +107,8 @@ export function QuizImporter({
   defaultExamId,
   defaultSubjectId,
   defaultTopicId,
+  basePath = "/admin",
+  canPublish = true,
   onSubmit,
 }: QuizImporterProps) {
   // -------------------------------------------------------------------------
@@ -177,7 +181,7 @@ export function QuizImporter({
   const [customDuration, setCustomDuration] = useState<number>(15);
   const [customDifficulty, setCustomDifficulty] =
     useState<TestDifficulty>("medium");
-  const [targetStatus, setTargetStatus] = useState<TestStatus>("published");
+  const [targetStatus, setTargetStatus] = useState<TestStatus>(canPublish ? "published" : "draft");
 
   // Mutation state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -355,9 +359,9 @@ export function QuizImporter({
             </Link>
           )}
 
-          <Link href={`/admin/tests/${createdTest.id}/preview`} className="w-full sm:w-auto">
+          <Link href={`${basePath}/tests/${createdTest.id}/preview`} className="w-full sm:w-auto">
             <Button variant="outline" leftIcon={<Eye className="w-4 h-4" />} className="w-full sm:w-auto">
-              Preview in Admin Panel
+              Preview Test
             </Button>
           </Link>
 
@@ -729,17 +733,19 @@ export function QuizImporter({
                   />
 
                   <div className="flex items-center gap-4 text-xs text-text-secondary pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer font-medium text-text-primary">
-                      <input
-                        type="radio"
-                        name="quizStatus"
-                        value="published"
-                        checked={targetStatus === "published"}
-                        onChange={() => setTargetStatus("published")}
-                        className="text-primary focus:ring-primary"
-                      />
-                      <span>Publish Immediately (Available to Students)</span>
-                    </label>
+                    {canPublish && (
+                      <label className="flex items-center gap-2 cursor-pointer font-medium text-text-primary">
+                        <input
+                          type="radio"
+                          name="quizStatus"
+                          value="published"
+                          checked={targetStatus === "published"}
+                          onChange={() => setTargetStatus("published")}
+                          className="text-primary focus:ring-primary"
+                        />
+                        <span>Publish Immediately (Available to Students)</span>
+                      </label>
+                    )}
 
                     <label className="flex items-center gap-2 cursor-pointer font-medium text-text-primary">
                       <input
@@ -750,7 +756,7 @@ export function QuizImporter({
                         onChange={() => setTargetStatus("draft")}
                         className="text-primary focus:ring-primary"
                       />
-                      <span>Save as Draft</span>
+                      <span>Save as Draft{!canPublish ? " (Publish requires TEST_PUBLISH)" : ""}</span>
                     </label>
                   </div>
                 </div>

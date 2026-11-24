@@ -23,6 +23,7 @@ interface SubjectFormProps {
     status: "active" | "draft" | "archived";
   }) => Promise<ActionResult<Subject>>;
   isEdit?: boolean;
+  basePath?: string;
 }
 
 export function SubjectForm({
@@ -31,6 +32,7 @@ export function SubjectForm({
   defaultExamId,
   onSubmit,
   isEdit = false,
+  basePath = "/admin",
 }: SubjectFormProps) {
   const router = useRouter();
   const [examId, setExamId] = useState(
@@ -64,7 +66,7 @@ export function SubjectForm({
       });
 
       if (res.success) {
-        router.push("/admin/subjects");
+        router.push(`${basePath}/subjects`);
         router.refresh();
       } else {
         setErrorMessage(res.error);

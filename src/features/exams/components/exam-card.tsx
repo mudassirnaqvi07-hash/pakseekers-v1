@@ -1,76 +1,105 @@
-/**
- * ExamCard — PakSeekers Phase 2.
- *
- * Displays high-level exam metadata and links to the exam subjects view.
- */
-
 import Link from "next/link";
-import { ArrowRight, Layers, CheckCircle2 } from "lucide-react";
-import type { Exam } from "@/types";
-import { Badge } from "@/components/ui";
+import { ArrowRight, BookOpen, Lock } from "lucide-react";
+import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { EnrollExamButton } from "./enroll-exam-button";
+import type { EnrollmentStatus, Exam } from "@/types/content";
 
 interface ExamCardProps {
   exam: Exam;
   isEnrolled?: boolean;
+  enrollmentStatus?: EnrollmentStatus | null;
   showEnrollAction?: boolean;
 }
 
-export function ExamCard({ exam, isEnrolled = false, showEnrollAction = false }: ExamCardProps) {
+export function ExamCard({
+  exam,
+  isEnrolled = false,
+  enrollmentStatus = null,
+  showEnrollAction = false,
+}: ExamCardProps) {
+  const effectiveStatus: EnrollmentStatus | null =
+    enrollmentStatus ?? (isEnrolled ? "APPROVED" : null);
+
+  const isApproved =
+    effectiveStatus === "APPROVED" || effectiveStatus === "ACTIVE";
+
   return (
-    <div className="bg-surface border border-border rounded-lg p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group min-w-0">
-      <div>
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <span className="inline-flex items-center px-2.5 py-1 rounded bg-primary/10 text-primary font-bold text-xs tracking-wide uppercase">
-            {exam.code}
-          </span>
-          {isEnrolled ? (
-            <Badge variant="success" className="text-xs font-semibold py-0.5 inline-flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Enrolled Track</span>
-            </Badge>
-          ) : (
-            <Badge variant="info" dot>
-              Available Track
-            </Badge>
-          )}
+    <Card className="h-full flex flex-col justify-between border-border hover:border-primary/40 transition-all shadow-2xs">
+      <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="px-2.5 py-1 rounded-md bg-primary/10 text-primary font-bold text-xs uppercase tracking-wider">
+              {exam.code}
+            </span>
+
+            {isApproved ? (
+              <Badge variant="success" className="text-[11px] font-semibold">
+                Approved Track
+              </Badge>
+            ) : effectiveStatus === "PENDING" ? (
+              <Badge variant="warning" className="text-[11px] font-semibold">
+                Pending Approval
+              </Badge>
+            ) : effectiveStatus === "REJECTED" ? (
+              <Badge variant="error" className="text-[11px] font-semibold">
+                Rejected
+              </Badge>
+            ) : effectiveStatus === "REVOKED" || effectiveStatus === "REMOVED" ? (
+              <Badge variant="error" className="text-[11px] font-semibold">
+                Revoked
+              </Badge>
+            ) : (
+              <Badge variant="neutral" className="text-[11px] font-medium">
+                {exam.totalSubjects} {exam.totalSubjects === 1 ? "Subject" : "Subjects"}
+              </Badge>
+            )}
+          </div>
+
+          <h3 className="text-lg font-bold text-text-primary leading-snug">
+            {exam.title}
+          </h3>
+          <p className="text-xs sm:text-sm text-text-secondary mt-2 line-clamp-3 leading-relaxed">
+            {exam.description}
+          </p>
         </div>
 
-        <h3 className="text-lg sm:text-xl font-bold text-text-primary group-hover:text-primary transition-colors">
-          {exam.title}
-        </h3>
+        <div className="pt-4 border-t border-border flex flex-col gap-2.5">
+          <div className="flex items-center justify-between text-xs text-text-secondary">
+            <span className="inline-flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-primary" />
+              <span>{exam.totalSubjects} Curriculum Subjects</span>
+            </span>
+            {!isApproved && showEnrollAction && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-text-secondary">
+                <Lock className="w-3 h-3" />
+                <span>Admin approval required</span>
+              </span>
+            )}
+          </div>
 
-        <p className="text-xs sm:text-sm text-text-secondary mt-2 line-clamp-3 leading-relaxed">
-          {exam.description}
-        </p>
-      </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {showEnrollAction && (
+              <EnrollExamButton
+                examId={exam.id}
+                examCode={exam.code}
+                enrollmentStatus={effectiveStatus}
+                size="sm"
+                redirectToWorkspace={true}
+              />
+            )}
 
-      <div className="pt-5 mt-5 sm:pt-6 sm:mt-6 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-          <Layers className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-          <span>
-            <strong className="font-semibold text-text-primary">{exam.totalSubjects}</strong>{" "}
-            Subjects Covered
-          </span>
+            <Link href={`/exams/${exam.id}`} className="ml-auto">
+              <Button
+                variant={isApproved ? "primary" : "outline"}
+                size="sm"
+                rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+              >
+                {isApproved ? "Enter Workspace" : "View Details"}
+              </Button>
+            </Link>
+          </div>
         </div>
-
-        {showEnrollAction && !isEnrolled ? (
-          <EnrollExamButton
-            examId={exam.id}
-            examCode={exam.code}
-            isEnrolled={isEnrolled}
-            size="sm"
-          />
-        ) : (
-          <Link
-            href={`/exams/${exam.id}`}
-            className="inline-flex flex-row items-center gap-1.5 text-xs sm:text-sm font-semibold text-primary hover:text-primary-hover whitespace-nowrap shrink-0 group-hover:translate-x-0.5 transition-all"
-          >
-            <span>{isEnrolled ? "Open Workspace" : "Explore Subjects"}</span>
-            <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />
-          </Link>
-        )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

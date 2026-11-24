@@ -14,6 +14,7 @@ import type {
   SafeUser,
   UserDeviceSession,
   TestPerformanceInsights,
+  Permission,
 } from "@/types";
 import { hashSessionToken } from "@/server/auth/tokens";
 import type {
@@ -146,4 +147,73 @@ export async function updateStudentDeviceLimit(
   maxDevices: number
 ): Promise<boolean> {
   return userRepo.updateStudentDeviceLimit(studentId, maxDevices);
+}
+
+// ---------------------------------------------------------------------------
+// Admin Staff Management Accessors
+// ---------------------------------------------------------------------------
+
+export async function getStaffList(options: {
+  search?: string;
+  status?: string;
+} = {}): Promise<SafeUser[]> {
+  return userRepo.getStaffList(options);
+}
+
+export async function getStaffById(staffId: string): Promise<SafeUser | null> {
+  return userRepo.getStaffById(staffId);
+}
+
+export async function createStaffAccount(input: {
+  name: string;
+  email: string;
+  password: string;
+  staffTitle?: string;
+  department?: string;
+  permissions?: Permission[];
+  createdBy?: string;
+}): Promise<SafeUser> {
+  return userRepo.createUser({
+    ...input,
+    role: "staff",
+    status: "active",
+    isEmailVerified: true,
+  });
+}
+
+export async function updateStaffDetails(
+  staffId: string,
+  input: {
+    name?: string;
+    email?: string;
+    staffTitle?: string;
+    department?: string;
+    password?: string;
+  }
+): Promise<SafeUser | null> {
+  return userRepo.updateStaffDetails(staffId, input);
+}
+
+export async function updateStaffPermissions(
+  staffId: string,
+  permissions: Permission[]
+): Promise<SafeUser | null> {
+  return userRepo.updateStaffPermissions(staffId, permissions);
+}
+
+export async function updateStaffStatus(
+  staffId: string,
+  status: "active" | "suspended"
+): Promise<SafeUser | null> {
+  return userRepo.updateStaffStatus(staffId, status);
+}
+
+export async function deleteStaffAccount(
+  staffId: string
+): Promise<{ success: boolean; error?: string }> {
+  const target = await userRepo.getStaffById(staffId);
+  if (!target || target.role !== "staff") {
+    return { success: false, error: "Staff account not found." };
+  }
+  return userRepo.permanentlyDeleteUser(staffId);
 }

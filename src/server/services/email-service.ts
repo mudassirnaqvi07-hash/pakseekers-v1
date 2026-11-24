@@ -116,12 +116,18 @@ function buildOtpVerificationEmailHtml({
   name,
   otp,
   expiresInMinutes = 10,
+  roleLabel = "student",
 }: {
   name: string;
   otp: string;
   expiresInMinutes?: number;
+  roleLabel?: "student" | "staff";
 }): string {
-  const safeName = name ? name.trim() : "Student";
+  const safeName = name ? name.trim() : roleLabel === "staff" ? "Staff Member" : "Student";
+  const accountDescription =
+    roleLabel === "staff"
+      ? "An administrator has created your PakSeekers academic staff account. To verify your email address and activate your Staff Portal access, please enter the 6-digit verification code below:"
+      : "Thank you for creating your student account. To complete your registration and begin preparing for MDCAT, ECAT, and university admissions tests, please enter the 6-digit verification code below:";
 
   return `
 <!DOCTYPE html>
@@ -248,7 +254,7 @@ function buildOtpVerificationEmailHtml({
         <h2 class="greeting">Welcome to PakSeekers, ${safeName}!</h2>
         <span class="badge-info">⏳ Verification code expires in ${expiresInMinutes} minutes</span>
         <p class="body-text">
-          Thank you for creating your student account. To complete your registration and begin preparing for MDCAT, ECAT, and university admissions tests, please enter the 6-digit verification code below:
+          ${accountDescription}
         </p>
 
         <div class="otp-box-container">
@@ -281,18 +287,20 @@ export interface SendVerificationEmailResult {
 }
 
 /**
- * Sends a branded student account OTP verification email via SMTP.
+ * Sends a branded account OTP verification email via SMTP (reused for both Students and Staff).
  */
 export async function sendVerificationEmail({
   to,
   name,
   otp,
   expiresInMinutes = 10,
+  roleLabel = "student",
 }: {
   to: string;
   name: string;
   otp: string;
   expiresInMinutes?: number;
+  roleLabel?: "student" | "staff";
 }): Promise<SendVerificationEmailResult> {
   const from = process.env.SMTP_FROM || env.SMTP_FROM || "PakSeekers <mudassirhassanreall@gmail.com>";
 
@@ -300,18 +308,25 @@ export async function sendVerificationEmail({
     name,
     otp,
     expiresInMinutes,
+    roleLabel,
   });
+
+  const introLine =
+    roleLabel === "staff"
+      ? "An administrator has created your PakSeekers academic staff account."
+      : "Thank you for creating your PakSeekers student account.";
 
   const text = `
 Welcome to PakSeekers, ${name}!
 
+${introLine}
 Your 6-digit email verification code is:
 ${otp}
 
 This verification code will expire in ${expiresInMinutes} minutes.
 For your security, do not share this code with anyone. PakSeekers staff will never ask for your code.
 
-If you did not create an account on PakSeekers, please ignore this email.
+If you did not expect this email, please ignore it.
   `.trim();
 
   try {

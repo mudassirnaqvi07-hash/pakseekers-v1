@@ -20,12 +20,14 @@ interface ExamFormProps {
     status: "active" | "draft" | "archived";
   }) => Promise<ActionResult<Exam>>;
   isEdit?: boolean;
+  basePath?: string;
 }
 
 export function ExamForm({
   initialData,
   onSubmit,
   isEdit = false,
+  basePath = "/admin",
 }: ExamFormProps) {
   const router = useRouter();
   const [code, setCode] = useState(initialData?.code || "");
@@ -50,7 +52,7 @@ export function ExamForm({
       });
 
       if (res.success) {
-        router.push("/admin/exams");
+        router.push(`${basePath}/exams`);
         router.refresh();
       } else {
         setErrorMessage(res.error);

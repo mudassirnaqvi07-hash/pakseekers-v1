@@ -25,6 +25,7 @@ interface TopicFormProps {
     status: "active" | "draft" | "archived";
   }) => Promise<ActionResult<Topic>>;
   isEdit?: boolean;
+  basePath?: string;
 }
 
 export function TopicForm({
@@ -35,6 +36,7 @@ export function TopicForm({
   defaultSubjectId,
   onSubmit,
   isEdit = false,
+  basePath = "/admin",
 }: TopicFormProps) {
   const router = useRouter();
 
@@ -99,7 +101,7 @@ export function TopicForm({
       });
 
       if (res.success) {
-        router.push("/admin/topics");
+        router.push(`${basePath}/topics`);
         router.refresh();
       } else {
         setErrorMessage(res.error);

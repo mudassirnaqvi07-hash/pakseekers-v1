@@ -20,6 +20,7 @@ import { verifyOtpAction, resendOtpAction } from "@/server/actions/auth-actions"
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const emailParam = searchParams.get("email") || "";
+  const roleParam = searchParams.get("role") || "";
   const isNewlyRegistered = searchParams.get("registered") === "true";
 
   const [email, setEmail] = useState(emailParam);
@@ -39,6 +40,7 @@ function VerifyEmailContent() {
   const [resendPending, startResendTransition] = useTransition();
 
   const [isVerified, setIsVerified] = useState(false);
+  const [verifiedRole, setVerifiedRole] = useState<string>(roleParam);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resendSuccess, setResendSuccess] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState<number>(isNewlyRegistered ? 60 : 0);
@@ -143,6 +145,9 @@ function VerifyEmailContent() {
         if (!res.success) {
           setErrorMessage(res.error);
         } else {
+          if (res.data.role) {
+            setVerifiedRole(res.data.role);
+          }
           setIsVerified(true);
         }
       } catch {
@@ -208,12 +213,14 @@ function VerifyEmailContent() {
               Email Verified Successfully!
             </h2>
             <p className="text-sm text-text-secondary mt-3 leading-relaxed">
-              Your student account has been activated. You can now sign in to start preparing for MDCAT, ECAT, and university admissions exams.
+              {verifiedRole === "staff"
+                ? "Your staff account email has been verified. You can now sign in to the Staff Portal with your credentials and assigned permissions."
+                : "Your student account has been activated. You can now sign in to start preparing for MDCAT, ECAT, and university admissions exams."}
             </p>
             <div className="mt-8 w-full">
-              <Link href="/student/login">
+              <Link href={verifiedRole === "staff" ? "/staff/login" : "/student/login"}>
                 <Button size="lg" className="w-full font-bold">
-                  Continue to Student Login
+                  {verifiedRole === "staff" ? "Continue to Staff Login" : "Continue to Student Login"}
                   <ArrowRight className="w-4 h-4 ml-1.5 inline" />
                 </Button>
               </Link>
@@ -377,7 +384,10 @@ function VerifyEmailContent() {
             {/* Return to Login */}
             <div className="mt-4 text-xs text-text-secondary">
               Already verified?{" "}
-              <Link href="/student/login" className="text-primary font-semibold hover:underline">
+              <Link
+                href={verifiedRole === "staff" ? "/staff/login" : "/student/login"}
+                className="text-primary font-semibold hover:underline"
+              >
                 Sign in here
               </Link>
             </div>

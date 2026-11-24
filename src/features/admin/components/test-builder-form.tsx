@@ -40,6 +40,8 @@ interface TestBuilderFormProps {
   defaultTopicId?: string;
   onSubmit: (data: Omit<Test, "id" | "questionCount" | "createdAt" | "updatedAt">) => Promise<ActionResult<Test>>;
   isEdit?: boolean;
+  basePath?: string;
+  canPublish?: boolean;
 }
 
 export function TestBuilderForm({
@@ -53,6 +55,8 @@ export function TestBuilderForm({
   defaultTopicId,
   onSubmit,
   isEdit = false,
+  basePath = "/admin",
+  canPublish = true,
 }: TestBuilderFormProps) {
   const router = useRouter();
 
@@ -219,7 +223,7 @@ export function TestBuilderForm({
 
       const res = await onSubmit(payload);
       if (res.success) {
-        router.push("/admin/tests");
+        router.push(`${basePath}/tests`);
         router.refresh();
       } else {
         setErrorMessage(res.error);
@@ -558,22 +562,24 @@ export function TestBuilderForm({
         <div className="flex items-center gap-3">
           <Button
             type="button"
-            variant="outline"
+            variant={canPublish ? "outline" : "primary"}
             isLoading={isPending}
             onClick={() => handleFormSubmit("draft")}
           >
             Save as Draft
           </Button>
 
-          <Button
-            type="button"
-            variant="primary"
-            isLoading={isPending}
-            onClick={() => handleFormSubmit("published")}
-            leftIcon={<CheckCircle2 className="w-4 h-4" />}
-          >
-            {isEdit ? "Update & Publish Test" : "Publish Test Now"}
-          </Button>
+          {canPublish && (
+            <Button
+              type="button"
+              variant="primary"
+              isLoading={isPending}
+              onClick={() => handleFormSubmit("published")}
+              leftIcon={<CheckCircle2 className="w-4 h-4" />}
+            >
+              {isEdit ? "Update & Publish Test" : "Publish Test Now"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

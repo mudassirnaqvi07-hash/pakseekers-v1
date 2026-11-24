@@ -18,7 +18,6 @@ import {
   AlertCircle,
   FileText,
   ShieldCheck,
-  Lock,
 } from "lucide-react";
 import { requireStudent } from "@/server/auth/session";
 import {
@@ -30,7 +29,8 @@ import {
   getTestPerformanceInsights,
 } from "@/server/services/content-service";
 import { canAccessExamination } from "@/server/services/enrollment-service";
-import { EnrollExamButton } from "@/features/exams/components/enroll-exam-button";
+import { findEnrollment } from "@/server/repositories/enrollment-repository";
+import { EnrollmentAccessGate } from "@/features/exams/components/enrollment-access-gate";
 import { TestPeerStatisticsCard } from "@/features/practice/components/test-peer-statistics-card";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 
@@ -51,48 +51,29 @@ export default async function TestByIdPage({ params }: TestByIdPageProps) {
   }
 
   // 3. Resolve parent exam, subject metadata, enrollment access, and peer statistics
-  const [exam, subject, hasAccess, peerStats] = await Promise.all([
+  const [exam, subject, hasAccess, existingEnrollment, peerStats] = await Promise.all([
     getExamById(test.examId),
     getSubjectById(test.subjectId),
     canAccessExamination(user.id, test.examId),
+    findEnrollment(user.id, test.examId),
     getTestPerformanceInsights(test.id),
   ]);
 
-  // Access Restriction Gate: Student must be enrolled in parent exam track
+  // Access Restriction Gate: Student must have approved enrollment in parent exam track
   if (!hasAccess) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4 sm:px-6">
-        <div className="rounded-xl border border-border bg-surface p-6 sm:p-8 text-center flex flex-col items-center gap-4 shadow-sm">
-          <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-            <Lock className="w-7 h-7" />
-          </div>
-          <div>
-            <Badge variant="warning" className="mb-2">
-              Enrollment Required
-            </Badge>
-            <h1 className="text-xl sm:text-2xl font-bold text-text-primary">
-              Enroll in {exam?.code || "Examination"} to Take This Test
-            </h1>
-            <p className="text-sm text-text-secondary mt-2 max-w-md mx-auto leading-relaxed">
-              &quot;{test.title}&quot; is part of the {exam?.title || "selected examination"} preparation track. You must be actively enrolled in this examination to access the test canvas and submit attempts.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-3 mt-3 w-full sm:w-auto">
-            <EnrollExamButton
-              examId={test.examId}
-              examCode={exam?.code}
-              size="md"
-              variant="primary"
-              className="w-full sm:w-auto justify-center"
-            />
-            <Link href="/exams" className="w-full sm:w-auto">
-              <Button variant="outline" size="md" className="w-full sm:w-auto justify-center">
-                Browse All Exams
-              </Button>
-            </Link>
-          </div>
-        </div>
+        <EnrollmentAccessGate
+          examId={test.examId}
+          examTitle={exam?.title}
+          examCode={exam?.code}
+          enrollmentStatus={existingEnrollment?.status ?? null}
+          decisionNotes={existingEnrollment?.decisionNotes ?? null}
+          isAuthenticated={true}
+          userRole={user.role}
+          callbackUrl={`/tests/${id}`}
+          resourceLabel={`the "${test.title}" assessment and test canvas`}
+        />
       </div>
     );
   }

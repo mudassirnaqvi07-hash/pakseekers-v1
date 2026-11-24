@@ -20,15 +20,13 @@ export default async function ExamsPage() {
     getCurrentUser(),
   ]);
 
-  const activeEnrollments = user
-    ? await getStudentEnrollments(user.id, "ACTIVE")
-    : [];
+  const allEnrollments = user ? await getStudentEnrollments(user.id) : [];
 
-  const enrolledExamIds = new Set(
-    activeEnrollments.map((e) => e.examinationId.toLowerCase())
+  const enrollmentStatusByExam = new Map(
+    allEnrollments.map((e) => [e.examinationId.toLowerCase(), e.status])
   );
 
-  const isStudent = user?.role === "student" || user?.role === "admin";
+  const isStudent = user?.role === "student";
 
   return (
     <div className="flex flex-col gap-8">
@@ -41,14 +39,19 @@ export default async function ExamsPage() {
       {/* Catalog Grid */}
       {exams.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {exams.map((exam) => (
-            <ExamCard
-              key={exam.id}
-              exam={exam}
-              isEnrolled={enrolledExamIds.has(exam.id.toLowerCase())}
-              showEnrollAction={isStudent}
-            />
-          ))}
+          {exams.map((exam) => {
+            const status =
+              enrollmentStatusByExam.get(exam.id.toLowerCase()) ?? null;
+            return (
+              <ExamCard
+                key={exam.id}
+                exam={exam}
+                isEnrolled={status === "APPROVED" || status === "ACTIVE"}
+                enrollmentStatus={status}
+                showEnrollAction={isStudent}
+              />
+            );
+          })}
         </div>
       ) : (
         <EmptyState

@@ -22,17 +22,27 @@ export type TestDifficulty = QuestionDifficulty | "mixed";
 
 export type TestStatus = "draft" | "published" | "archived";
 
-export type EnrollmentStatus = "ACTIVE" | "REMOVED";
+export type EnrollmentStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "REVOKED"
+  | "ACTIVE"
+  | "REMOVED";
 
-export type EnrollmentSource = "FREE_SELECTION" | "SUBSCRIPTION" | "ADMIN_GRANTED";
+export type EnrollmentSource =
+  | "STUDENT_REQUEST"
+  | "ADMIN_GRANTED"
+  | "SUBSCRIPTION"
+  | "FREE_SELECTION";
 
 // ---------------------------------------------------------------------------
 // Student Multi-Exam Enrollment Model
 // ---------------------------------------------------------------------------
 
 /**
- * Tracks a student's active or past enrollment in an examination track.
- * Supports multiple concurrent preparations with independent lifecycle.
+ * Tracks a student's enrollment request and approval lifecycle in an examination track.
+ * Enforces one enrollment record per student per examination.
  */
 export interface StudentEnrollment {
   id: string;
@@ -40,6 +50,10 @@ export interface StudentEnrollment {
   examinationId: string;
   status: EnrollmentStatus;
   enrollmentSource: EnrollmentSource;
+  requestedAt?: string;
+  decisionAt?: string | null;
+  approvedBy?: string | null;
+  decisionNotes?: string | null;
   enrolledAt: string;
   removedAt?: string | null;
   createdAt: string;

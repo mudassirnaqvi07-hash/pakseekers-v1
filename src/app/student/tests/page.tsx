@@ -33,7 +33,7 @@ export default async function StudentTestsPage({
     await searchParams;
 
   const [activeEnrollments, allExams] = await Promise.all([
-    getStudentEnrollments(user.id, "ACTIVE"),
+    getStudentEnrollments(user.id, "APPROVED"),
     getAllExams(),
   ]);
 
@@ -46,8 +46,8 @@ export default async function StudentTestsPage({
         />
         <EmptyState
           icon={<Award className="w-8 h-8 text-primary" />}
-          title="No Active Examination Preparations"
-          description="You are not actively enrolled in any examination tracks. Please enroll in your target exam (MDCAT, ECAT, FAST, NTS) to access curriculum tests."
+          title="No Approved Examination Enrollments"
+          description="Apply for enrollment in your target examination track (MDCAT, ECAT, FAST, NTS). Tests unlock once an Administrator approves your request."
           action={
             <Link href="/exams">
               <Button size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
