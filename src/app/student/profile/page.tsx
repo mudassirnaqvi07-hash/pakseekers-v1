@@ -6,8 +6,10 @@ import type { Metadata } from "next";
 import { Calendar, ShieldCheck, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui";
 import { PageHeader } from "@/components/shared";
-import { requireStudent } from "@/server/auth/session";
+import { requireStudent, getCurrentSessionToken } from "@/server/auth/session";
+import { getStudentActiveSessions } from "@/server/services/user-service";
 import { StudentProfileForm } from "@/features/student/components/student-profile-form";
+import { StudentDeviceSessionsCard } from "@/features/student/components/student-device-sessions-card";
 
 export const metadata: Metadata = {
   title: "Student Profile",
@@ -16,6 +18,8 @@ export const metadata: Metadata = {
 
 export default async function StudentProfilePage() {
   const user = await requireStudent();
+  const currentToken = await getCurrentSessionToken();
+  const activeSessions = await getStudentActiveSessions(user.id, currentToken || undefined);
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
@@ -63,6 +67,12 @@ export default async function StudentProfilePage() {
           <StudentProfileForm user={user} />
         </CardContent>
       </Card>
+
+      {/* Connected Devices & Session Security */}
+      <StudentDeviceSessionsCard
+        initialSessions={activeSessions}
+        maxDevices={user.maxDevices ?? 2}
+      />
     </div>
   );
 }

@@ -75,6 +75,7 @@ export interface UserDoc extends Document {
   otpLastSentAt?: Date | string | null;
   otpAttempts?: number;
   profile: StudentProfile;
+  maxDevices?: number;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -82,11 +83,20 @@ export interface UserDoc extends Document {
 
 export interface SessionDoc extends Document {
   _id?: ObjectId;
+  id?: string;
   token: string;
   userId: string;
   role: UserRole;
+  deviceId?: string;
+  deviceName?: string;
+  deviceType?: "desktop" | "mobile" | "tablet";
+  browser?: string;
+  operatingSystem?: string;
   createdAt: string;
+  lastActiveAt?: string;
   expiresAt: string;
+  revokedAt?: string | null;
+  status?: "active" | "revoked" | "expired";
 }
 
 export interface ExamDoc extends Document {
@@ -343,7 +353,9 @@ export async function ensureMongoIndexes(db: Db): Promise<{
   const s1 = await sessionsCol.createIndex({ token: 1 }, { unique: true, name: "idx_sessions_token_unique" });
   const s2 = await sessionsCol.createIndex({ userId: 1 }, { name: "idx_sessions_userId" });
   const s3 = await sessionsCol.createIndex({ expiresAt: 1 }, { name: "idx_sessions_expiresAt" });
-  results.push({ collection: COLLECTIONS.SESSIONS, indexesCreated: [s1, s2, s3] });
+  const s4 = await sessionsCol.createIndex({ deviceId: 1 }, { name: "idx_sessions_deviceId" });
+  const s5 = await sessionsCol.createIndex({ userId: 1, status: 1, expiresAt: 1 }, { name: "idx_sessions_user_status_exp" });
+  results.push({ collection: COLLECTIONS.SESSIONS, indexesCreated: [s1, s2, s3, s4, s5] });
 
   // 3. Exams Indexes
   const examsCol = db.collection(COLLECTIONS.EXAMS);

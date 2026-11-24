@@ -8,7 +8,13 @@
  *   app/pages  →  server/services/user-service  →  server/repositories/user-repository
  */
 
-import type { TestAttempt, StudentDashboardStats, SafeUser } from "@/types";
+import type {
+  TestAttempt,
+  StudentDashboardStats,
+  SafeUser,
+  UserDeviceSession,
+} from "@/types";
+import { hashSessionToken } from "@/server/auth/tokens";
 import type {
   StudentListFilterOptions,
   PaginatedStudentsResult,
@@ -76,4 +82,63 @@ export async function permanentlyDeleteStudent(
   studentId: string
 ): Promise<{ success: boolean; error?: string }> {
   return userRepo.permanentlyDeleteUser(studentId);
+}
+
+// ---------------------------------------------------------------------------
+// Student Device & Session Management
+// ---------------------------------------------------------------------------
+
+export async function getStudentActiveSessions(
+  studentId: string,
+  currentRawToken?: string
+): Promise<UserDeviceSession[]> {
+  const sessions = await userRepo.getActiveSessionsForUser(studentId);
+  const currentTokenHash = currentRawToken ? hashSessionToken(currentRawToken) : null;
+
+  return sessions.map((s) => ({
+    id: s.id || "",
+    deviceId: s.deviceId || "unknown_device",
+    deviceName: s.deviceName || "Desktop • Browser",
+    deviceType: s.deviceType || "desktop",
+    browser: s.browser || "Browser",
+    operatingSystem: s.operatingSystem || "OS",
+    createdAt: s.createdAt,
+    lastActiveAt: s.lastActiveAt || s.createdAt,
+    expiresAt: s.expiresAt,
+    isCurrent: Boolean(
+      (currentRawToken && s.token === currentRawToken) ||
+        (currentTokenHash && s.token === currentTokenHash)
+    ),
+  }));
+}
+
+export async function countStudentActiveDevices(studentId: string): Promise<number> {
+  const sessions = await userRepo.getActiveSessionsForUser(studentId);
+  const distinct = new Set(sessions.map((s) => s.deviceId).filter(Boolean));
+  return distinct.size;
+}
+
+export async function revokeSession(
+  sessionId: string,
+  studentId?: string
+): Promise<boolean> {
+  return userRepo.revokeSessionById(sessionId, studentId);
+}
+
+export async function revokeAllOtherSessions(
+  studentId: string,
+  currentRawToken: string
+): Promise<number> {
+  return userRepo.revokeAllOtherSessions(studentId, currentRawToken);
+}
+
+export async function revokeAllStudentSessions(studentId: string): Promise<void> {
+  return userRepo.deleteUserSessions(studentId);
+}
+
+export async function updateStudentDeviceLimit(
+  studentId: string,
+  maxDevices: number
+): Promise<boolean> {
+  return userRepo.updateStudentDeviceLimit(studentId, maxDevices);
 }

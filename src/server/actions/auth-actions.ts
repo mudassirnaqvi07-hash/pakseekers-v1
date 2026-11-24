@@ -9,7 +9,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { ActionResult, SafeUser } from "@/types";
+import type { ActionResult, SafeUser, UserDeviceSession } from "@/types";
 import {
   authenticateCredentials,
   registerNewStudent,
@@ -23,9 +23,16 @@ import {
   setSessionCookie,
   clearSessionCookie,
   getCurrentSession,
+  getCurrentSessionToken,
   getCurrentUser,
   isSafeStudentCallbackUrl,
 } from "@/server/auth/session";
+import { resolveCurrentDeviceInfo } from "@/server/auth/device";
+import {
+  getStudentActiveSessions,
+  revokeSession,
+  revokeAllOtherSessions,
+} from "@/server/services/user-service";
 import { getAdminEntryPath } from "@/lib/config/admin-path";
 import {
   loginSchema,
@@ -61,8 +68,11 @@ export async function loginStudentAction(
 
     const { email, password, callbackUrl } = parsed.data;
 
-    // 1. Authoritative authentication via auth-service (rate limited, scrypt verification)
-    const authResult = await authenticateCredentials(email, password, "student");
+    // 1. Resolve device metadata from persistent device cookie and user-agent
+    const deviceInfo = await resolveCurrentDeviceInfo();
+
+    // 2. Authoritative authentication via auth-service (rate limited, scrypt verification, device limits)
+    const authResult = await authenticateCredentials(email, password, "student", deviceInfo);
     if (!authResult.success) {
       return {
         success: false,
@@ -70,22 +80,27 @@ export async function loginStudentAction(
         isEmailUnverified: authResult.failure.isEmailUnverified,
         unverifiedEmail: authResult.failure.unverifiedEmail,
         retryAfterSeconds: authResult.failure.retryAfterSeconds,
+        isDeviceLimitReached: authResult.failure.isDeviceLimitReached,
+        activeDevicesCount: authResult.failure.activeDevicesCount,
+        maxDevices: authResult.failure.maxDevices,
       };
     }
 
-    // 2. Session fixation defense: invalidate any prior session before setting cookie
+    // 3. Session fixation & multi-role tab switching defense: invalidate any prior session and clear existing cookie
     const existingSession = await getCurrentSession();
     if (existingSession) {
       await invalidateSession(existingSession.token);
     }
+    await clearSessionCookie();
 
-    // 3. Set secure HTTP-only cookie with the fresh session token
+    // 4. Set secure HTTP-only cookie with the fresh session token
     const cookieSet = await setSessionCookie(authResult.data.session.token);
     if (!cookieSet) {
       console.warn("Unable to set session cookie in current request context.");
     }
 
     safeRevalidate("/student/dashboard");
+    safeRevalidate("/admin/dashboard");
     safeRevalidate("/");
 
     const destination =
@@ -331,8 +346,11 @@ export async function loginAdminAction(
   const { email, password } = parsed.data;
 
   try {
-    // 1. Authoritative authentication via auth-service (rate limited, scrypt verification, admin role enforced)
-    const authResult = await authenticateCredentials(email, password, "admin");
+    // 1. Resolve device metadata
+    const deviceInfo = await resolveCurrentDeviceInfo();
+
+    // 2. Authoritative authentication via auth-service (rate limited, scrypt verification, admin role enforced)
+    const authResult = await authenticateCredentials(email, password, "admin", deviceInfo);
     if (!authResult.success) {
       return {
         success: false,
@@ -340,19 +358,23 @@ export async function loginAdminAction(
       };
     }
 
-    // 2. Session fixation defense
+    // 3. Session fixation & multi-role tab switching defense: invalidate any prior session and clear existing cookie
     const existingSession = await getCurrentSession();
     if (existingSession) {
       await invalidateSession(existingSession.token);
     }
+    await clearSessionCookie();
 
-    // 3. Set secure HTTP-only cookie
+    // 4. Set secure HTTP-only cookie
     const cookieSet = await setSessionCookie(authResult.data.session.token);
     if (!cookieSet) {
       throw new Error("Unable to establish admin session.");
     }
 
-    revalidatePath("/admin/dashboard");
+    safeRevalidate("/admin/dashboard");
+    safeRevalidate("/student/dashboard");
+    safeRevalidate("/");
+
     return { success: true, data: { redirectUrl: "/admin/dashboard" } };
   } catch (error) {
     console.error("Admin login failed:", error);
@@ -370,8 +392,147 @@ export async function logoutAdminAction(): Promise<void> {
   }
   await clearSessionCookie();
   const entryPath = getAdminEntryPath();
-  revalidatePath(entryPath);
+  safeRevalidate(entryPath);
+  safeRevalidate("/admin/dashboard");
+  safeRevalidate("/");
   redirect(entryPath);
+}
+
+// ---------------------------------------------------------------------------
+// Student Device & Session Management Actions
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrieves all active sessions and connected devices for the authenticated student.
+ */
+export async function getStudentDeviceSessionsAction(): Promise<
+  ActionResult<UserDeviceSession[]>
+> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || user.role !== "student") {
+      return {
+        success: false,
+        error: "Unauthorized: You must be signed in as a student to view device sessions.",
+      };
+    }
+
+    const currentToken = await getCurrentSessionToken();
+    const sessions = await getStudentActiveSessions(user.id, currentToken || undefined);
+
+    return {
+      success: true,
+      data: sessions,
+    };
+  } catch (err) {
+    console.error("Failed to retrieve student device sessions:", err);
+    return {
+      success: false,
+      error: "Unable to retrieve connected device sessions.",
+    };
+  }
+}
+
+/**
+ * Terminates a specific device session for the authenticated student.
+ * If the student terminates their current active session, their cookie is cleared.
+ */
+export async function terminateStudentSessionAction(
+  sessionId: string
+): Promise<ActionResult<{ isCurrentSessionTerminated: boolean }>> {
+  try {
+    if (!sessionId || typeof sessionId !== "string") {
+      return { success: false, error: "Session ID is required." };
+    }
+
+    const user = await getCurrentUser();
+    if (!user || user.role !== "student") {
+      return {
+        success: false,
+        error: "Unauthorized: You must be signed in as a student to manage device sessions.",
+      };
+    }
+
+    const currentToken = await getCurrentSessionToken();
+    const sessions = await getStudentActiveSessions(user.id, currentToken || undefined);
+    const targetSession = sessions.find((s) => s.id === sessionId);
+
+    if (!targetSession) {
+      return {
+        success: false,
+        error: "Session not found or already terminated.",
+      };
+    }
+
+    const isCurrent = targetSession.isCurrent;
+    await revokeSession(sessionId, user.id);
+
+    if (isCurrent) {
+      await clearSessionCookie();
+    }
+
+    safeRevalidate("/student/profile");
+    safeRevalidate("/student/dashboard");
+
+    return {
+      success: true,
+      data: { isCurrentSessionTerminated: isCurrent },
+      message: isCurrent
+        ? "Current session terminated. You have been signed out."
+        : "Device session successfully terminated.",
+    };
+  } catch (err) {
+    console.error("Failed to terminate student session:", err);
+    return {
+      success: false,
+      error: "Unable to terminate device session.",
+    };
+  }
+}
+
+/**
+ * Terminates all other active sessions for the authenticated student, keeping the current session active.
+ */
+export async function terminateAllOtherStudentSessionsAction(): Promise<
+  ActionResult<{ revokedCount: number }>
+> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || user.role !== "student") {
+      return {
+        success: false,
+        error: "Unauthorized: You must be signed in as a student to manage device sessions.",
+      };
+    }
+
+    const currentToken = await getCurrentSessionToken();
+    if (!currentToken) {
+      return {
+        success: false,
+        error: "Current session token could not be verified.",
+      };
+    }
+
+    const revokedCount = await revokeAllOtherSessions(user.id, currentToken);
+
+    safeRevalidate("/student/profile");
+    safeRevalidate("/student/dashboard");
+
+    return {
+      success: true,
+      data: { revokedCount },
+      message:
+        revokedCount > 0
+          ? `Successfully signed out of ${revokedCount} other device session${revokedCount > 1 ? "s" : ""}.`
+          : "No other active device sessions found.",
+    };
+  } catch (err) {
+    console.error("Failed to terminate other student sessions:", err);
+    return {
+      success: false,
+      error: "Unable to terminate other device sessions.",
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
