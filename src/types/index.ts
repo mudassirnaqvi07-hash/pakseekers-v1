@@ -62,5 +62,8 @@ export type {
   UserSession,
   UserStatus,
   WeakAreaItem,
+  DeviceType,
+  SessionStatus,
+  UserDeviceSession,
 } from "./auth";
 

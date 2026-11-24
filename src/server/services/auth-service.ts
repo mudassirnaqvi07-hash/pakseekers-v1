@@ -17,6 +17,7 @@ import {
   createUser,
   updateUserProfile,
   createSession,
+  createStudentSessionWithLimit,
   findSessionByToken,
   deleteSession,
   deleteUserSessions,
@@ -43,6 +44,7 @@ import type {
   UserRole,
   UserSession,
   StudentProfile,
+  DeviceType,
 } from "@/types";
 
 export interface AuthSuccessResult {
@@ -56,6 +58,9 @@ export interface AuthFailureResult {
   retryAfterSeconds?: number;
   isEmailUnverified?: boolean;
   unverifiedEmail?: string;
+  isDeviceLimitReached?: boolean;
+  activeDevicesCount?: number;
+  maxDevices?: number;
 }
 
 export type AuthResult =
@@ -63,13 +68,20 @@ export type AuthResult =
   | { success: false; failure: AuthFailureResult };
 
 /**
- * Authoritative user credential verification with brute-force rate limiting
- * and student email verification enforcement.
+ * Authoritative user credential verification with brute-force rate limiting,
+ * account status checks, student email verification, and device session limit enforcement.
  */
 export async function authenticateCredentials(
   email: string,
   plainPassword: string,
-  expectedRole?: UserRole
+  expectedRole?: UserRole,
+  device?: {
+    deviceId?: string;
+    deviceName?: string;
+    deviceType?: DeviceType;
+    browser?: string;
+    operatingSystem?: string;
+  }
 ): Promise<AuthResult> {
   const normalizedEmail = email.trim().toLowerCase();
   const rateLimitKey = `login:${expectedRole || "user"}:${normalizedEmail}`;
@@ -134,8 +146,28 @@ export async function authenticateCredentials(
   // 5. Reset rate limit counter on success
   await resetRateLimit(rateLimitKey);
 
-  // 6. Issue fresh session
-  const session = await createSession(user.id, user.role);
+  // 6. Issue fresh session with device limit enforcement for students
+  let session: UserSession;
+  if (user.role === "student") {
+    const sessionRes = await createStudentSessionWithLimit(user.id, device);
+    if (!sessionRes.success || !sessionRes.session) {
+      return {
+        success: false,
+        failure: {
+          error:
+            sessionRes.error ||
+            "Device limit reached. Please terminate an existing session before logging in.",
+          isDeviceLimitReached: true,
+          activeDevicesCount: sessionRes.activeDevicesCount,
+          maxDevices: sessionRes.maxDevices,
+        },
+      };
+    }
+    session = sessionRes.session;
+  } else {
+    // Administrators have no device limits
+    session = await createSession(user.id, user.role, device);
+  }
 
   // 7. Return sanitized SafeUser
   const safeUser: SafeUser = {

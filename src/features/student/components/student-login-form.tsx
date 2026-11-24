@@ -9,7 +9,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertCircle, Eye, EyeOff, CheckCircle2, Mail, RefreshCw } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, CheckCircle2, Mail, RefreshCw, Smartphone } from "lucide-react";
 import { Button, Input } from "@/components/ui";
 import { loginStudentAction, resendVerificationAction } from "@/server/actions/auth-actions";
 
@@ -18,6 +18,11 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [isDeviceLimitReached, setIsDeviceLimitReached] = useState(false);
+  const [deviceLimitDetails, setDeviceLimitDetails] = useState<{
+    active: number;
+    max: number;
+  } | null>(null);
   const [resendPending, startResendTransition] = useTransition();
   const [resendMsg, setResendMsg] = useState<{ text: string; isError?: boolean } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -30,8 +35,9 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
     if (isPending || successMsg) return; // Prevent duplicate submissions
 
     setError(null);
-
     setUnverifiedEmail(null);
+    setIsDeviceLimitReached(false);
+    setDeviceLimitDetails(null);
     setResendMsg(null);
 
     const form = e.currentTarget;
@@ -55,6 +61,13 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
           setError(res.error);
           if (res.isEmailUnverified) {
             setUnverifiedEmail(res.unverifiedEmail || emailVal);
+          }
+          if (res.isDeviceLimitReached) {
+            setIsDeviceLimitReached(true);
+            setDeviceLimitDetails({
+              active: res.activeDevicesCount ?? 2,
+              max: res.maxDevices ?? 2,
+            });
           }
         } else {
           setSuccessMsg("Authentication verified! Launching your student portal...");
@@ -101,7 +114,7 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
       className="flex flex-col gap-4 w-full"
       noValidate
     >
-      {error && !unverifiedEmail && (
+      {error && !unverifiedEmail && !isDeviceLimitReached && (
         <div
           role="alert"
           aria-live="polite"
@@ -109,6 +122,31 @@ export function StudentLoginForm({ callbackUrl }: { callbackUrl?: string }) {
         >
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {isDeviceLimitReached && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 text-xs flex flex-col gap-2.5 animate-in fade-in"
+        >
+          <div className="flex items-start gap-2.5">
+            <Smartphone className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-900">Active Device Limit Reached</p>
+              <p className="text-amber-800/90 mt-1">
+                Your account is currently active on{" "}
+                <strong className="text-amber-950 font-semibold">
+                  {deviceLimitDetails?.active ?? 2} of {deviceLimitDetails?.max ?? 2}
+                </strong>{" "}
+                permitted devices.
+              </p>
+              <p className="text-amber-800/80 mt-1 leading-relaxed">
+                To sign in from this device, please log out from one of your other active sessions (via Student Profile &rarr; Connected Devices) or contact an administrator to extend your limit.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

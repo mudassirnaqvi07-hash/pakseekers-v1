@@ -16,10 +16,12 @@ import type {
   QuestionReport,
   QuestionReportStatus,
   SafeUser,
+  UserDeviceSession,
   UserStatus,
 } from "@/types";
 import { getCurrentUser } from "@/server/auth/session";
 import * as userRepo from "@/server/repositories/user-repository";
+import * as userService from "@/server/services/user-service";
 import * as reportRepo from "@/server/repositories/report-repository";
 import * as settingsRepo from "@/server/repositories/settings-repository";
 
@@ -347,5 +349,113 @@ export async function updateContentDefaultsAction(
   } catch (err) {
     console.error("Failed to update content defaults:", err);
     return { success: false, error: "Failed to save content default settings." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Student Session & Device Management Actions (Admin)
+// ---------------------------------------------------------------------------
+
+export async function getStudentActiveSessionsByAdminAction(
+  studentId: string
+): Promise<ActionResult<UserDeviceSession[]>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  if (!studentId?.trim()) {
+    return { success: false, error: "Student ID is required." };
+  }
+
+  try {
+    const sessions = await userService.getStudentActiveSessions(studentId.trim());
+    return { success: true, data: sessions };
+  } catch (err) {
+    console.error("Failed to fetch student active sessions:", err);
+    return { success: false, error: "Failed to retrieve student sessions." };
+  }
+}
+
+export async function terminateStudentSessionByAdminAction(
+  studentId: string,
+  sessionId: string
+): Promise<ActionResult<{ sessionId: string }>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  if (!studentId?.trim() || !sessionId?.trim()) {
+    return { success: false, error: "Both Student ID and Session ID are required." };
+  }
+
+  try {
+    const success = await userService.revokeSession(sessionId.trim(), studentId.trim());
+    if (!success) {
+      return { success: false, error: "Session not found or already revoked." };
+    }
+
+    revalidatePath("/admin/students");
+    revalidatePath(`/admin/students/${studentId.trim()}`);
+    return { success: true, data: { sessionId: sessionId.trim() } };
+  } catch (err) {
+    console.error("Failed to terminate student session:", err);
+    return { success: false, error: "Failed to terminate student session." };
+  }
+}
+
+export async function terminateAllStudentSessionsByAdminAction(
+  studentId: string
+): Promise<ActionResult<{ studentId: string }>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  if (!studentId?.trim()) {
+    return { success: false, error: "Student ID is required." };
+  }
+
+  try {
+    await userService.revokeAllStudentSessions(studentId.trim());
+    revalidatePath("/admin/students");
+    revalidatePath(`/admin/students/${studentId.trim()}`);
+    return { success: true, data: { studentId: studentId.trim() } };
+  } catch (err) {
+    console.error("Failed to terminate all student sessions:", err);
+    return { success: false, error: "Failed to terminate student sessions." };
+  }
+}
+
+export async function updateStudentDeviceLimitAction(
+  studentId: string,
+  maxDevices: number
+): Promise<ActionResult<{ studentId: string; maxDevices: number }>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  if (!studentId?.trim()) {
+    return { success: false, error: "Student ID is required." };
+  }
+
+  const parsedLimit = Number(maxDevices);
+  if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 10) {
+    return {
+      success: false,
+      error: "Device limit must be an integer between 1 and 10 devices.",
+    };
+  }
+
+  try {
+    const success = await userService.updateStudentDeviceLimit(studentId.trim(), parsedLimit);
+    if (!success) {
+      return { success: false, error: "Student account not found or update failed." };
+    }
+
+    revalidatePath("/admin/students");
+    revalidatePath(`/admin/students/${studentId.trim()}`);
+    return {
+      success: true,
+      data: { studentId: studentId.trim(), maxDevices: parsedLimit },
+      message: `Maximum allowed devices updated to ${parsedLimit}.`,
+    };
+  } catch (err) {
+    console.error("Failed to update student device limit:", err);
+    return { success: false, error: "Failed to update student device limit." };
   }
 }

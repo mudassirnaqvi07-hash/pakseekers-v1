@@ -42,6 +42,9 @@ export type ActionResult<T = void> =
       retryAfterSeconds?: number;
       remainingAttempts?: number;
       reason?: string;
+      isDeviceLimitReached?: boolean;
+      activeDevicesCount?: number;
+      maxDevices?: number;
     };
 
 // ---------------------------------------------------------------------------

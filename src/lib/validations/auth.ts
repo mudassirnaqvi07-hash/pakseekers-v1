@@ -106,3 +106,8 @@ export type StudentRegisterFormData = z.infer<typeof studentRegisterSchema>;
 export type StudentProfileFormData = z.infer<typeof studentProfileSchema>;
 export type VerifyOtpFormData = z.infer<typeof verifyOtpSchema>;
 export type ResendOtpFormData = z.infer<typeof resendOtpSchema>;
+
+
+
+
+

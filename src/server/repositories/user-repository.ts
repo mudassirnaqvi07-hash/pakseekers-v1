@@ -9,7 +9,7 @@ import "server-only";
  *   - Test Attempts & Results (Evaluated quiz attempts and performance logs)
  */
 
-import { type ClientSession } from "mongodb";
+import { type ClientSession, ObjectId } from "mongodb";
 import {
   getMongoDb,
   getMongoClient,
@@ -41,6 +41,7 @@ import type {
   StudentDashboardStats,
   SubjectProgress,
   WeakAreaItem,
+  DeviceType,
 } from "@/types";
 
 // Re-export password helpers for convenience
@@ -468,55 +469,165 @@ export async function updateUserProfile(
 }
 
 // ---------------------------------------------------------------------------
-// Session Operations
+// Session & Device Management Operations
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a new session in MongoDB.
+ * Creates a new session in MongoDB with device metadata.
  * Generates an unpredictable 256-bit token.
- * Stores ONLY the SHA-256 hash of the token in MongoDB for database breach resilience.
- * Returns the raw token in UserSession.token so it can be set into the HTTP-only cookie.
+ * Stores ONLY the SHA-256 hash of the token in MongoDB for breach resilience.
+ * Returns the raw token in UserSession.token so it can be committed to the HTTP-only cookie.
  */
-export async function createSession(userId: string, role: UserRole): Promise<UserSession> {
+export async function createSession(
+  userId: string,
+  role: UserRole,
+  device?: {
+    deviceId?: string;
+    deviceName?: string;
+    deviceType?: DeviceType;
+    browser?: string;
+    operatingSystem?: string;
+  }
+): Promise<UserSession> {
   const db = await getMongoDb();
   const rawToken = generateSessionToken();
   const hashedToken = hashSessionToken(rawToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+  const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const sessionDoc: SessionDoc = {
+    id: sessionId,
     token: hashedToken,
     userId,
     role,
+    deviceId: device?.deviceId || `dev_${Math.random().toString(36).substring(2, 10)}`,
+    deviceName: device?.deviceName || "Desktop • Browser",
+    deviceType: device?.deviceType || "desktop",
+    browser: device?.browser || "Browser",
+    operatingSystem: device?.operatingSystem || "OS",
     createdAt: now.toISOString(),
+    lastActiveAt: now.toISOString(),
     expiresAt,
+    status: "active",
+    revokedAt: null,
   };
 
   await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).insertOne(sessionDoc);
 
-  // Return the session with rawToken for the cookie
   return {
+    id: sessionDoc.id,
     token: rawToken,
     userId,
     role,
+    deviceId: sessionDoc.deviceId,
+    deviceName: sessionDoc.deviceName,
+    deviceType: sessionDoc.deviceType,
+    browser: sessionDoc.browser,
+    operatingSystem: sessionDoc.operatingSystem,
     createdAt: sessionDoc.createdAt,
+    lastActiveAt: sessionDoc.lastActiveAt,
     expiresAt: sessionDoc.expiresAt,
+    status: sessionDoc.status,
   };
 }
 
 /**
+ * Atomically validates device limit and creates a new authenticated session for a student.
+ * If target device already has an active session for this student, replaces that session (same device slot).
+ * If target device is new, enforces student's maxDevices limit (default 2).
+ */
+export async function createStudentSessionWithLimit(
+  studentId: string,
+  device?: {
+    deviceId?: string;
+    deviceName?: string;
+    deviceType?: DeviceType;
+    browser?: string;
+    operatingSystem?: string;
+  }
+): Promise<{
+  success: boolean;
+  session?: UserSession;
+  error?: string;
+  isDeviceLimitReached?: boolean;
+  activeDevicesCount?: number;
+  maxDevices?: number;
+}> {
+  const db = await getMongoDb();
+  const student = await db.collection<UserDoc>(COLLECTIONS.USERS).findOne({ id: studentId });
+  if (!student) {
+    return { success: false, error: "Student account not found." };
+  }
+
+  const maxAllowed =
+    typeof student.maxDevices === "number" && student.maxDevices > 0 ? student.maxDevices : 2;
+  const targetDeviceId = device?.deviceId;
+  const now = new Date();
+
+  // 1. Purge expired sessions for this student
+  await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).deleteMany({
+    userId: studentId,
+    expiresAt: { $lte: now.toISOString() },
+  });
+
+  // 2. Query currently active sessions
+  const activeSessions = await db
+    .collection<SessionDoc>(COLLECTIONS.SESSIONS)
+    .find({
+      userId: studentId,
+      expiresAt: { $gt: now.toISOString() },
+      $or: [{ status: "active" }, { status: { $exists: false } }],
+    })
+    .toArray();
+
+  // 3. Check if target device already has an active session
+  const isSameDevice = targetDeviceId
+    ? activeSessions.some((s) => s.deviceId === targetDeviceId)
+    : false;
+
+  if (isSameDevice && targetDeviceId) {
+    // Re-authenticating on the same device: replace existing session so device count stays 1
+    await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).deleteMany({
+      userId: studentId,
+      deviceId: targetDeviceId,
+    });
+  } else {
+    // Distinct new device: count active unique devices
+    const distinctDeviceIds = new Set(
+      activeSessions.map((s) => s.deviceId || s.token).filter(Boolean)
+    );
+
+    if (distinctDeviceIds.size >= maxAllowed) {
+      return {
+        success: false,
+        isDeviceLimitReached: true,
+        activeDevicesCount: distinctDeviceIds.size,
+        maxDevices: maxAllowed,
+        error: `Device limit reached. Your account is active on the maximum allowed devices (${maxAllowed}). Please log out from another device before logging in here.`,
+      };
+    }
+  }
+
+  // 4. Create fresh session
+  const session = await createSession(studentId, "student", device);
+  return { success: true, session };
+}
+
+/**
  * Resolves an active session by its raw cookie token.
- * Hashes the incoming token with SHA-256 to lookup the stored session document.
- * Includes backward-compatible migration lookup for unhashed legacy tokens.
+ * Validates expiration, active status, and performs throttled lastActiveAt updates.
  */
 export async function findSessionByToken(rawToken: string): Promise<UserSession | null> {
   if (!rawToken || typeof rawToken !== "string") return null;
   const db = await getMongoDb();
   const hashedToken = hashSessionToken(rawToken);
 
-  let session = await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).findOne({ token: hashedToken });
+  let session = await db
+    .collection<SessionDoc>(COLLECTIONS.SESSIONS)
+    .findOne({ token: hashedToken });
 
-  // Backward-compatible fallback for unhashed tokens (migrates in place if found)
+  // Backward-compatible fallback for unhashed legacy tokens
   if (!session) {
     session = await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).findOne({ token: rawToken });
     if (session) {
@@ -529,18 +640,42 @@ export async function findSessionByToken(rawToken: string): Promise<UserSession 
 
   if (!session) return null;
 
-  // Check expiration
+  // Revocation check
+  if (session.status === "revoked") {
+    return null;
+  }
+
+  // Expiration check
   if (new Date(session.expiresAt) < new Date()) {
     await deleteSession(rawToken);
     return null;
   }
 
+  // Throttled lastActiveAt update (every 5 minutes to prevent DB write spam)
+  const lastActive = session.lastActiveAt ? new Date(session.lastActiveAt).getTime() : 0;
+  if (Date.now() - lastActive > 5 * 60 * 1000) {
+    db.collection<SessionDoc>(COLLECTIONS.SESSIONS)
+      .updateOne(
+        { _id: session._id },
+        { $set: { lastActiveAt: new Date().toISOString() } }
+      )
+      .catch(() => {});
+  }
+
   return {
+    id: session.id || session._id?.toString(),
     token: rawToken,
     userId: session.userId,
     role: session.role,
+    deviceId: session.deviceId,
+    deviceName: session.deviceName,
+    deviceType: session.deviceType,
+    browser: session.browser,
+    operatingSystem: session.operatingSystem,
     createdAt: session.createdAt,
+    lastActiveAt: session.lastActiveAt || session.createdAt,
     expiresAt: session.expiresAt,
+    status: session.status || "active",
   };
 }
 
@@ -556,10 +691,106 @@ export async function deleteSession(rawToken: string): Promise<void> {
   });
 }
 
+/**
+ * Revokes a session by session ID and optional user filter.
+ */
+export async function revokeSessionById(
+  sessionId: string,
+  targetUserId?: string
+): Promise<boolean> {
+  if (!sessionId) return false;
+  const db = await getMongoDb();
+  const query: Record<string, unknown> = {
+    $or: [
+      { id: sessionId },
+      ...(ObjectId.isValid(sessionId) ? [{ _id: new ObjectId(sessionId) }] : []),
+    ],
+  };
+  if (targetUserId) {
+    query.userId = targetUserId;
+  }
+
+  const result = await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).deleteOne(query);
+  return result.deletedCount > 0;
+}
+
+/**
+ * Revokes all sessions for a user EXCEPT the one matching currentRawToken.
+ */
+export async function revokeAllOtherSessions(
+  userId: string,
+  currentRawToken: string
+): Promise<number> {
+  if (!userId || !currentRawToken) return 0;
+  const db = await getMongoDb();
+  const hashedToken = hashSessionToken(currentRawToken);
+
+  const result = await db.collection<SessionDoc>(COLLECTIONS.SESSIONS).deleteMany({
+    userId,
+    token: { $nin: [hashedToken, currentRawToken] },
+  });
+
+  return result.deletedCount;
+}
+
+/**
+ * Revokes/deletes all sessions for a user.
+ */
 export async function deleteUserSessions(userId: string): Promise<void> {
   if (!userId) return;
   const db = await getMongoDb();
   await db.collection(COLLECTIONS.SESSIONS).deleteMany({ userId });
+}
+
+/**
+ * Retrieves all active, unexpired, unrevoked sessions for a user.
+ */
+export async function getActiveSessionsForUser(userId: string): Promise<UserSession[]> {
+  if (!userId) return [];
+  const db = await getMongoDb();
+  const now = new Date().toISOString();
+
+  const docs = await db
+    .collection<SessionDoc>(COLLECTIONS.SESSIONS)
+    .find({
+      userId,
+      expiresAt: { $gt: now },
+      $or: [{ status: "active" }, { status: { $exists: false } }],
+    })
+    .sort({ lastActiveAt: -1, createdAt: -1 })
+    .toArray();
+
+  return docs.map((s) => ({
+    id: s.id || s._id?.toString() || "",
+    token: s.token,
+    userId: s.userId,
+    role: s.role,
+    deviceId: s.deviceId || "unknown_device",
+    deviceName: s.deviceName || "Desktop • Browser",
+    deviceType: s.deviceType || "desktop",
+    browser: s.browser || "Browser",
+    operatingSystem: s.operatingSystem || "OS",
+    createdAt: s.createdAt,
+    lastActiveAt: s.lastActiveAt || s.createdAt,
+    expiresAt: s.expiresAt,
+    status: s.status || "active",
+  }));
+}
+
+/**
+ * Configures the maximum allowed active devices for an individual student.
+ */
+export async function updateStudentDeviceLimit(
+  studentId: string,
+  maxDevices: number
+): Promise<boolean> {
+  if (!studentId || maxDevices < 1) return false;
+  const db = await getMongoDb();
+  const res = await db.collection<UserDoc>(COLLECTIONS.USERS).updateOne(
+    { id: studentId, role: "student" },
+    { $set: { maxDevices, updatedAt: new Date().toISOString() } }
+  );
+  return res.matchedCount > 0;
 }
 
 // ---------------------------------------------------------------------------
