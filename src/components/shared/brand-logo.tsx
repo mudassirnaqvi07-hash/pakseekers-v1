@@ -180,7 +180,7 @@ export function BrandLogo({
         className={cn(
           "relative flex items-center justify-center shrink-0 rounded-xl overflow-hidden shadow-2xs transition-transform group-hover:scale-[1.02]",
           config.iconClass,
-          dark ? "bg-white/10 border border-white/15" : "bg-primary/5 border border-primary/10"
+          dark ? "bg-white/95 border border-white/25" : "bg-primary/5 border border-primary/10"
         )}
       >
         <Image
@@ -200,7 +200,7 @@ export function BrandLogo({
             config.textClass
           )}
         >
-          <span className="text-primary font-black">PAK</span>
+          <span className={cn("font-black", dark ? "text-emerald-300" : "text-primary")}>PAK</span>
           <span className={dark ? "text-white" : "text-secondary"}>SEEKERS</span>
         </span>
 
