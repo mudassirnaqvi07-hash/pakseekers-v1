@@ -27,10 +27,12 @@ import type {
   ContentStatus,
   Section,
   Lesson,
+  TestPerformanceInsights,
 } from "@/types";
 import type { QuestionFilters, TestFilters, DashboardStats } from "@/server/repositories/content-repository";
 import * as contentRepo from "@/server/repositories/content-repository";
 import { getStudentEnrollments } from "@/server/repositories/enrollment-repository";
+import { getTestPeerStatistics } from "@/server/repositories/user-repository";
 
 export type { QuestionFilters, TestFilters, DashboardStats, ExamSubject };
 
@@ -278,4 +280,16 @@ export async function getAdminAllMockTests(): Promise<Test[]> {
 
 export async function getPublishedMockTests(examId?: string): Promise<Test[]> {
   return contentRepo.getPublishedMockTests(examId);
+}
+
+// ---------------------------------------------------------------------------
+// Test Performance Insights (Peer Statistics)
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrieves authoritative aggregated peer statistics for a specific test.
+ * Calculated server-side across valid completed student attempts.
+ */
+export async function getTestPerformanceInsights(testId: string): Promise<TestPerformanceInsights> {
+  return getTestPeerStatistics(testId);
 }

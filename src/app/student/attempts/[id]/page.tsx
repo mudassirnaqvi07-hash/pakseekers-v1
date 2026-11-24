@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { requireStudent } from "@/server/auth/session";
-import { getAttemptById } from "@/server/services/user-service";
+import { getAttemptById, getTestPerformanceInsights } from "@/server/services/user-service";
+import { TestPeerStatisticsCard } from "@/features/practice/components/test-peer-statistics-card";
 
 interface AttemptDetailPageProps {
   params: Promise<{ id: string }>;
@@ -48,6 +49,9 @@ export default async function AttemptDetailPage({ params }: AttemptDetailPagePro
   if (attempt.studentId !== user.id) {
     notFound();
   }
+
+  // Resolve peer statistics for this test
+  const peerStats = await getTestPerformanceInsights(attempt.testId);
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
@@ -126,6 +130,9 @@ export default async function AttemptDetailPage({ params }: AttemptDetailPagePro
           </div>
         </div>
       </div>
+
+      {/* Peer Performance Comparison Card */}
+      <TestPeerStatisticsCard stats={peerStats} studentScore={attempt.percentage} />
 
       {/* Retake action */}
       <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-3">

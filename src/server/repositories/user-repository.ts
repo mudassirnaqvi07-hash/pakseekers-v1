@@ -42,6 +42,7 @@ import type {
   SubjectProgress,
   WeakAreaItem,
   DeviceType,
+  TestPerformanceInsights,
 } from "@/types";
 
 // Re-export password helpers for convenience
@@ -826,6 +827,142 @@ export async function getAttemptById(attemptId: string): Promise<TestAttempt | n
   const db = await getMongoDb();
   const doc = await db.collection<TestAttemptDoc>(COLLECTIONS.ATTEMPTS).findOne({ id: attemptId });
   return doc ? toDomainEntity<TestAttempt>(doc) : null;
+}
+
+/**
+ * Formats a duration in seconds into human-readable text.
+ * e.g., 1475 -> "24 min 35 sec", 1920 -> "32 min", 45 -> "45 sec"
+ */
+export function formatDuration(seconds: number | null): string | null {
+  if (seconds === null || isNaN(seconds) || seconds <= 0) return null;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  if (mins === 0) return `${secs} sec`;
+  if (secs === 0) return `${mins} min`;
+  return `${mins} min ${secs} sec`;
+}
+
+/**
+ * Calculates aggregated peer performance statistics for a specific test.
+ *
+ * Rules:
+ * - Scoped strictly to the specific testId.
+ * - Counts only valid, completed attempts (status: "completed").
+ * - Calculates arithmetic mean score (percentage).
+ * - Calculates arithmetic mean time taken between startedAt and completedAt.
+ * - Excludes corrupted or anomalous completion times (e.g. <= 0 or > 24 hours).
+ * - Never returns individual student identities, IDs, or records (strict privacy).
+ * - Returns hasSufficientData: false if no valid completed attempts exist.
+ */
+export async function getTestPeerStatistics(testId: string): Promise<TestPerformanceInsights> {
+  const emptyResult: TestPerformanceInsights = {
+    testId,
+    totalAttempts: 0,
+    averageScore: null,
+    averageTimeSeconds: null,
+    formattedAverageTime: null,
+    hasSufficientData: false,
+  };
+
+  if (!testId || typeof testId !== "string") {
+    return emptyResult;
+  }
+
+  const db = await getMongoDb();
+
+  const pipeline = [
+    {
+      $match: {
+        testId,
+        status: "completed",
+        percentage: { $exists: true, $type: "number", $gte: 0, $lte: 100 },
+        startedAt: { $exists: true, $type: "string" },
+        completedAt: { $exists: true, $type: "string" },
+      },
+    },
+    {
+      $addFields: {
+        startDate: {
+          $dateFromString: {
+            dateString: "$startedAt",
+            onError: null,
+            onNull: null,
+          },
+        },
+        endDate: {
+          $dateFromString: {
+            dateString: "$completedAt",
+            onError: null,
+            onNull: null,
+          },
+        },
+      },
+    },
+    {
+      $addFields: {
+        durationSeconds: {
+          $cond: {
+            if: {
+              $and: [
+                { $ne: ["$startDate", null] },
+                { $ne: ["$endDate", null] },
+                { $gt: ["$endDate", "$startDate"] },
+              ],
+            },
+            then: {
+              $divide: [{ $subtract: ["$endDate", "$startDate"] }, 1000],
+            },
+            else: null,
+          },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$testId",
+        totalAttempts: { $sum: 1 },
+        avgScore: { $avg: "$percentage" },
+        avgDurationSeconds: {
+          $avg: {
+            $cond: {
+              if: {
+                $and: [
+                  { $gt: ["$durationSeconds", 0] },
+                  { $lt: ["$durationSeconds", 86400] }, // < 24 hours
+                ],
+              },
+              then: "$durationSeconds",
+              else: null,
+            },
+          },
+        },
+      },
+    },
+  ];
+
+  const results = await db
+    .collection<TestAttemptDoc>(COLLECTIONS.ATTEMPTS)
+    .aggregate(pipeline)
+    .toArray();
+
+  if (!results || results.length === 0 || results[0].totalAttempts === 0) {
+    return emptyResult;
+  }
+
+  const record = results[0];
+  const totalAttempts = record.totalAttempts || 0;
+  const avgScore = typeof record.avgScore === "number" ? Math.round(record.avgScore) : null;
+  const avgSeconds =
+    typeof record.avgDurationSeconds === "number" ? Math.round(record.avgDurationSeconds) : null;
+
+  return {
+    testId,
+    totalAttempts,
+    averageScore: avgScore,
+    averageTimeSeconds: avgSeconds,
+    formattedAverageTime: formatDuration(avgSeconds),
+    hasSufficientData: totalAttempts > 0 && avgScore !== null,
+  };
 }
 
 export async function getStudentDashboardStats(studentId: string): Promise<StudentDashboardStats> {

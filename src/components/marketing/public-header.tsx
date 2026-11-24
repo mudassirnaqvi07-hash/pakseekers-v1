@@ -102,11 +102,21 @@ export function PublicHeader({ currentUser }: PublicHeaderProps) {
         {/* Brand Logo with Official Crest */}
         <BrandLogo
           variant="horizontal"
+          size="sm"
+          href="/"
+          onClick={closeMobile}
+          subtitle="Entry Test Prep"
+          priority
+          className="sm:hidden"
+        />
+        <BrandLogo
+          variant="horizontal"
           size="md"
           href="/"
           onClick={closeMobile}
           subtitle="Entry Test Prep"
           priority
+          className="hidden sm:inline-flex"
         />
 
         {/* Desktop Navigation Links */}

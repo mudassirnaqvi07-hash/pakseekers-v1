@@ -9,33 +9,36 @@
 /* ---------------------------------------------------------------------------
    Single Source of Truth: Centralized Design Tokens
    Directly derived from the official PakSeekers logo:
-   - Primary: Deep Oxford / Midnight Navy (#011640)
-   - Secondary: Authentic Pakistani Emerald Green (#04501F)
+   - Primary Brand Green: Authentic Pakistani Emerald Green (#04501F)
+   - Secondary / Academic Contrast: Deep Oxford / Midnight Navy (#011640)
    - Accent: Academic Guiding Gold (#C59B27)
    --------------------------------------------------------------------------- */
 :root {
   /* Core Brand Tokens */
-  --brand-primary:   #011640;
-  --brand-secondary: #04501F;
-  --brand-accent:    #C59B27;
+  --brand-primary:        #04501F;
+  --brand-primary-hover:  #033D17;
+  --brand-primary-light:  #F0FDF4;
+  --brand-primary-subtle: rgba(4, 80, 31, 0.08);
 
-  /* Interactive Hover Variants */
-  --brand-primary-hover:   #0A2559;
-  --brand-secondary-hover: #066628;
-  --brand-accent-hover:    #D4AF37;
+  --brand-secondary:        #011640;
+  --brand-secondary-hover:  #0A2559;
+
+  --brand-accent:       #C59B27;
+  --brand-accent-hover: #B28B20;
 
   /* Coordinated Neutrals */
   --background:        #F8FAFC;
   --surface:           #FFFFFF;
   --surface-hover:     #F1F5F9;
-  --foreground:        #011640;
+  --foreground:        #0F172A;
   --foreground-muted:  #475569;
+  --foreground-subtle: #64748B;
   --border:            #E2E8F0;
 
   /* Semantic Feedback Tokens */
   --success:  #04501F;
   --error:    #DC2626;
-  --warning:  #C59B27;
+  --warning:  #D97706;
   --disabled: #94A3B8;
 }
 
@@ -44,9 +47,16 @@
    --------------------------------------------------------------------------- */
 @theme {
   /* Brand Colors */
-  --color-primary:   var(--brand-primary);
-  --color-secondary: var(--brand-secondary);
-  --color-accent:    var(--brand-accent);
+  --color-primary:        var(--brand-primary);
+  --color-primary-hover:  var(--brand-primary-hover);
+  --color-primary-light:  var(--brand-primary-light);
+  --color-primary-subtle: var(--brand-primary-subtle);
+
+  --color-secondary:       var(--brand-secondary);
+  --color-secondary-hover: var(--brand-secondary-hover);
+
+  --color-accent:       var(--brand-accent);
+  --color-accent-hover: var(--brand-accent-hover);
 
   /* Surface / Background */
   --color-background:    var(--background);
@@ -56,6 +66,7 @@
   /* Text */
   --color-text-primary:   var(--foreground);
   --color-text-secondary: var(--foreground-muted);
+  --color-text-muted:     var(--foreground-subtle);
 
   /* Border */
   --color-border: var(--border);
@@ -65,11 +76,6 @@
   --color-error:    var(--error);
   --color-warning:  var(--warning);
   --color-disabled: var(--disabled);
-
-  /* Hover variants (used for interactive elements) */
-  --color-primary-hover:   var(--brand-primary-hover);
-  --color-secondary-hover: var(--brand-secondary-hover);
-  --color-accent-hover:    var(--brand-accent-hover);
 
   /* Typography */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;

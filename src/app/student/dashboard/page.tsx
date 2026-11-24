@@ -9,7 +9,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   FileCheck2,
-  CheckCircle2,
   Target,
   BarChart2,
   ArrowRight,
@@ -172,33 +171,18 @@ export default async function StudentDashboardPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Metric Overview Cards (Authoritative Database Analytics) */}
       {/* ------------------------------------------------------------------ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        {/* Total Tests Attempted */}
-        <Card className="shadow-2xs">
-          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Tests Attempted</p>
-              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
-                {stats.testsAttempted}
-              </h2>
-            </div>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <FileCheck2 className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {/* Completed Tests */}
         <Card className="shadow-2xs">
           <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Completed</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Tests Completed</p>
               <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
                 {stats.completedTests ?? stats.testsAttempted}
               </h2>
             </div>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <FileCheck2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>
         </Card>
@@ -212,7 +196,7 @@ export default async function StudentDashboardPage() {
                 {stats.questionsSolved}
               </h2>
             </div>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <BarChart2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>
@@ -222,19 +206,19 @@ export default async function StudentDashboardPage() {
         <Card className="shadow-2xs">
           <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Average Score</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Average Accuracy</p>
               <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5 sm:mt-1">
                 {stats.averageScore !== null ? `${stats.averageScore}%` : "—"}
               </h2>
             </div>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-info/10 text-info flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-500/10 text-emerald-700 flex items-center justify-center shrink-0">
               <Target className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>
         </Card>
 
         {/* Best Score */}
-        <Card className="shadow-2xs col-span-2 sm:col-span-1 lg:col-span-1">
+        <Card className="shadow-2xs">
           <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[11px] sm:text-xs font-semibold text-text-secondary truncate">Best Score</p>
@@ -242,7 +226,7 @@ export default async function StudentDashboardPage() {
                 {stats.bestScore !== null ? `${stats.bestScore}%` : "—"}
               </h2>
             </div>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0">
               <Award className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </CardContent>

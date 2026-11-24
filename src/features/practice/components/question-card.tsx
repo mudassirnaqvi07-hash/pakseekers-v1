@@ -42,10 +42,10 @@ export function QuestionCard({
   onToggleFlag,
 }: QuestionCardProps) {
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 md:p-8 shadow-xs min-w-0">
+    <div className="bg-surface border border-border rounded-xl p-4 sm:p-6 shadow-2xs min-w-0">
       {/* Meta header */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 pb-4 border-b border-border mb-5">
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-border mb-4 sm:mb-5">
+        <div className="flex items-center gap-2 sm:gap-3">
           <span className="text-xs font-bold tracking-wider text-text-secondary uppercase">
             Question {questionNumber} of {totalQuestions}
           </span>
@@ -54,9 +54,9 @@ export function QuestionCard({
               type="button"
               onClick={onToggleFlag}
               aria-label={isFlagged ? "Unflag question" : "Flag question for review"}
-              className={`flex items-center gap-1 text-xs px-2 sm:px-2.5 py-1 rounded-md border transition-colors cursor-pointer min-h-[36px] sm:min-h-0 ${
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors cursor-pointer min-h-[36px] touch-manipulation ${
                 isFlagged
-                  ? "bg-amber-500/15 text-amber-700 border-amber-500/40 font-semibold"
+                  ? "bg-amber-500/15 text-amber-800 border-amber-500/40 font-semibold"
                   : "bg-surface text-text-secondary border-border hover:bg-background"
               }`}
             >
@@ -70,7 +70,7 @@ export function QuestionCard({
           <Badge
             variant={DIFFICULTY_VARIANT_MAP[question.difficulty]}
             dot
-            className="capitalize text-xs"
+            className="capitalize text-xs font-semibold"
           >
             {question.difficulty}
           </Badge>

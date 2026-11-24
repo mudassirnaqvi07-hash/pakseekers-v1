@@ -13,6 +13,7 @@ import type {
   StudentDashboardStats,
   SafeUser,
   UserDeviceSession,
+  TestPerformanceInsights,
 } from "@/types";
 import { hashSessionToken } from "@/server/auth/tokens";
 import type {
@@ -33,6 +34,10 @@ export async function getStudentAttempts(studentId: string): Promise<TestAttempt
 
 export async function getAttemptById(attemptId: string): Promise<TestAttempt | null> {
   return userRepo.getAttemptById(attemptId);
+}
+
+export async function getTestPerformanceInsights(testId: string): Promise<TestPerformanceInsights> {
+  return userRepo.getTestPeerStatistics(testId);
 }
 
 // ---------------------------------------------------------------------------
