@@ -27,9 +27,11 @@ import {
   getAllTopics,
   getExamById,
   getSubjectById,
+  getTestPerformanceInsights,
 } from "@/server/services/content-service";
 import { canAccessExamination } from "@/server/services/enrollment-service";
 import { EnrollExamButton } from "@/features/exams/components/enroll-exam-button";
+import { TestPeerStatisticsCard } from "@/features/practice/components/test-peer-statistics-card";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 
 interface TestByIdPageProps {
@@ -48,11 +50,12 @@ export default async function TestByIdPage({ params }: TestByIdPageProps) {
     notFound();
   }
 
-  // 3. Resolve parent exam, subject metadata, and enrollment access
-  const [exam, subject, hasAccess] = await Promise.all([
+  // 3. Resolve parent exam, subject metadata, enrollment access, and peer statistics
+  const [exam, subject, hasAccess, peerStats] = await Promise.all([
     getExamById(test.examId),
     getSubjectById(test.subjectId),
     canAccessExamination(user.id, test.examId),
+    getTestPerformanceInsights(test.id),
   ]);
 
   // Access Restriction Gate: Student must be enrolled in parent exam track
@@ -212,6 +215,9 @@ export default async function TestByIdPage({ params }: TestByIdPageProps) {
             </div>
           </div>
         </div>
+
+        {/* Peer Performance Insights */}
+        <TestPeerStatisticsCard stats={peerStats} />
 
         {/* Instructions and Rules */}
         <Card>

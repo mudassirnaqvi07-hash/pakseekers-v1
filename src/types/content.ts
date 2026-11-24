@@ -398,3 +398,16 @@ export interface QuizEvaluationResult {
   percentage: number;
   questionResults: QuestionResultItem[];
 }
+
+/**
+ * Aggregated peer performance statistics for a specific test.
+ * Anonymized arithmetic averages computed on the server from valid completed attempts.
+ */
+export interface TestPerformanceInsights {
+  testId: string;
+  totalAttempts: number;
+  averageScore: number | null; // arithmetic mean percentage (e.g. 68 for 68%)
+  averageTimeSeconds: number | null; // arithmetic mean duration in seconds
+  formattedAverageTime: string | null; // formatted duration e.g. "24 min 35 sec"
+  hasSufficientData: boolean; // true when valid completed attempts meet minimum threshold
+}

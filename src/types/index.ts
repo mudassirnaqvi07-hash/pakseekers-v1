@@ -46,6 +46,7 @@ export type {
   SystemSecurityStatus,
   Test,
   TestDifficulty,
+  TestPerformanceInsights,
   TestStatus,
   Topic,
   UserAnswers,

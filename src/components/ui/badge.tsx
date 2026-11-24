@@ -38,13 +38,13 @@ const variantStyles: Record<BadgeVariant, string> = {
   // Draft — neutral, content not yet ready
   draft: "bg-background text-text-secondary border-border",
   // Success / Published / Correct
-  success: "bg-green-50 text-success border-green-200",
+  success: "bg-emerald-50 text-emerald-800 border-emerald-200/80",
   // Error / Critical / Incorrect
-  error: "bg-red-50 text-error border-red-200",
+  error: "bg-red-50 text-red-700 border-red-200",
   // Warning / Review / Needs improvement
-  warning: "bg-amber-50 text-amber-700 border-amber-200",
-  // Info / Secondary
-  info: "bg-blue-50 text-primary border-blue-200",
+  warning: "bg-amber-50 text-amber-800 border-amber-200",
+  // Info / Track / Active Preparation
+  info: "bg-primary/10 text-primary border-primary/25 font-semibold",
   // Archived — muted
   archived: "bg-background text-disabled border-border",
 };
