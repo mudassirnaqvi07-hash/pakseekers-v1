@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart2,
   BookOpen,
+  ClipboardCheck,
   ClipboardList,
   FileText,
   Flag,
@@ -23,6 +24,7 @@ import {
   HelpCircle,
   LayoutDashboard,
   Layers,
+  LogOut,
   Settings,
   ShieldCheck,
   Timer,
@@ -31,6 +33,7 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { cn } from "@/lib/utils/cn";
+import { logoutAdminAction } from "@/server/actions/auth-actions";
 
 // ---------------------------------------------------------------------------
 // Navigation structure
@@ -79,7 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Users",
     items: [
       { label: "Students", href: "/admin/students", icon: Users },
-      { label: "Enrollments", href: "/admin/enrollments", icon: ShieldCheck },
+      { label: "Enrollments", href: "/admin/enrollments", icon: ClipboardCheck },
       { label: "Staff & Permissions", href: "/admin/staff", icon: ShieldCheck },
     ],
   },
@@ -136,14 +139,14 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         id="admin-sidebar"
         aria-label="Admin navigation"
         className={cn(
-          // Positioning
-          "fixed inset-y-0 left-0 z-50",
+          // Positioning & viewport sizing
+          "fixed inset-y-0 left-0 z-50 h-dvh",
           // Dimensions
-          "w-64 max-w-[85vw] flex flex-col",
+          "w-64 max-w-[85vw] flex flex-col overflow-hidden",
           // Visual
           "bg-primary shadow-xl",
-          // Desktop: always visible; Mobile: slide in/out
-          "lg:static lg:translate-x-0 lg:w-60 lg:shadow-none",
+          // Desktop: pinned full viewport height; Mobile: slide in/out
+          "lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 lg:w-60 lg:shadow-none",
           isOpen ? "translate-x-0" : "-translate-x-full",
           "transition-transform duration-200 ease-in-out",
           // Ensure it doesn't interfere with desktop layout
@@ -151,7 +154,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         )}
       >
         {/* Brand mark & Mobile Close Button */}
-        <div className="h-14 shrink-0 flex items-center justify-between px-4 border-b border-white/10">
+        <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-white/10">
           <BrandLogo variant="horizontal" size="xs" href="/admin/dashboard" dark subtitle="Admin Portal" />
 
           {/* Close button for mobile drawer */}
@@ -175,13 +178,13 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
         {/* Navigation */}
         <nav
-          className="flex-1 overflow-y-auto py-4 px-3"
+          className="flex-1 min-h-0 overflow-y-auto py-2 px-3"
           aria-label="Primary navigation"
         >
-          <ul role="list" className="flex flex-col gap-5">
+          <ul role="list" className="flex flex-col gap-2 lg:gap-1.5">
             {NAV_GROUPS.map((group) => (
               <li key={group.label}>
-                <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-white/40 select-none">
+                <p className="mb-0.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-white/45 select-none leading-tight">
                   {group.label}
                 </p>
                 <ul role="list" className="flex flex-col gap-0.5">
@@ -198,13 +201,13 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                           onClick={onClose}
                           aria-current={isActive ? "page" : undefined}
                           className={cn(
-                            "flex items-center gap-2.5 px-2.5 py-2.5 sm:py-2 rounded-md min-h-[44px] sm:min-h-0",
-                            "text-sm font-medium",
+                            "flex items-center gap-2.5 px-2.5 py-2 lg:py-1 rounded-md min-h-[40px] lg:min-h-0",
+                            "text-sm lg:text-[13px] font-medium leading-tight",
                             "transition-colors duration-150",
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
                             isActive
                               ? "bg-white/15 text-white font-semibold"
-                              : "text-white/70 hover:bg-white/10 hover:text-white"
+                              : "text-white/75 hover:bg-white/10 hover:text-white"
                           )}
                         >
                           <item.icon
@@ -221,6 +224,19 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             ))}
           </ul>
         </nav>
+
+        {/* Bottom Admin Logout */}
+        <div className="shrink-0 p-2.5 border-t border-white/10 bg-black/15">
+          <form action={logoutAdminAction}>
+            <button
+              type="submit"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-semibold text-white/85 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 shrink-0" aria-hidden />
+              <span>Logout</span>
+            </button>
+          </form>
+        </div>
       </aside>
     </>
   );

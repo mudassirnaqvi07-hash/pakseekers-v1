@@ -69,7 +69,7 @@ export function AdminHeader({ sidebarOpen, onSidebarToggle }: AdminHeaderProps) 
             className="inline-flex items-center gap-1.5 text-xs font-medium text-text-secondary hover:text-error transition-colors px-2.5 py-1.5 rounded-md hover:bg-background whitespace-nowrap cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">Logout</span>
+            <span>Logout</span>
           </button>
         </form>
       </div>
