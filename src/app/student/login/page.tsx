@@ -17,27 +17,28 @@ export const metadata: Metadata = {
 export default async function StudentLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string; verified?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; verified?: string; error?: string }>;
 }) {
-  const { callbackUrl, verified } = await searchParams;
+  const { callbackUrl, verified, error } = await searchParams;
   const user = await getCurrentUser();
 
   // If already authenticated as a student, forward directly to student dashboard
-  if (user && user.role === "student") {
+  if (user && user.role === "student" && (user.status || "active") !== "suspended") {
     if (isSafeStudentCallbackUrl(callbackUrl)) {
       redirect(callbackUrl!.trim());
     }
     redirect("/student/dashboard");
   }
 
-  // NOTE: If currently authenticated as an admin in another tab/context, DO NOT auto-redirect to admin dashboard.
+  // NOTE: If currently authenticated as admin or staff in another tab/context, DO NOT auto-redirect.
   // The user explicitly navigated to the student sign-in portal to authenticate with a student account.
-  const activeAdminEmail = user && user.role === "admin" ? user.email : null;
+  const activeOtherSession =
+    user && user.role !== "student" ? { email: user.email, role: user.role } : null;
 
   return (
     <div className="w-full max-w-md my-auto py-8">
       <div className="text-center mb-6 flex flex-col items-center">
-        <BrandLogo variant="full" size="md" href="/" className="mb-3" priority />
+        <BrandLogo variant="full" size="md" href="/student/login" className="mb-3" priority />
         <h1 className="text-2xl font-bold text-text-primary tracking-tight">
           Student Portal Sign In
         </h1>
@@ -48,9 +49,17 @@ export default async function StudentLoginPage({
         </p>
       </div>
 
-      {activeAdminEmail && (
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-error/10 border border-error/25 text-error text-xs font-medium">
+          {error}
+        </div>
+      )}
+
+      {activeOtherSession && (
         <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-900 text-xs">
-          <span className="font-semibold">Switching Accounts:</span> Currently active administrator session detected ({activeAdminEmail}). Signing in with student credentials will replace this session and open the Student Dashboard.
+          <span className="font-semibold">Switching Accounts:</span> Currently active{" "}
+          <span className="uppercase font-bold">{activeOtherSession.role}</span> session detected (
+          {activeOtherSession.email}). Signing in with student credentials will replace this session and open the Student Dashboard.
         </div>
       )}
 

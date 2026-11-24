@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, ArrowLeft, ArrowRight, ShieldCheck, CheckCircle2, Clock, HelpCircle } from "lucide-react";
+import { ChevronRight, ArrowLeft, ArrowRight, CheckCircle2, Clock, HelpCircle } from "lucide-react";
 import { getExamById, getSubjectsByExamId, getAllPublishedTests } from "@/server/services/content-service";
 import { getCurrentUser } from "@/server/auth/session";
 import { canAccessExamination } from "@/server/services/enrollment-service";
+import { findEnrollment } from "@/server/repositories/enrollment-repository";
 import { SubjectCard } from "@/features/exams/components/subject-card";
-import { EnrollExamButton } from "@/features/exams/components/enroll-exam-button";
+import { EnrollmentAccessGate } from "@/features/exams/components/enrollment-access-gate";
 import { RemoveExamDialog } from "@/features/exams/components/remove-exam-dialog";
 import { Button, Badge, Card, CardContent } from "@/components/ui";
 
@@ -38,14 +39,18 @@ export default async function ExamDetailPage({ params }: ExamDetailPageProps) {
     notFound();
   }
 
-  const [subjects, user, tests] = await Promise.all([
-    getSubjectsByExamId(examId),
-    getCurrentUser(),
-    getAllPublishedTests(exam.id),
+  const user = await getCurrentUser();
+  const [isEnrolled, existingEnrollment] = await Promise.all([
+    user ? canAccessExamination(user.id, exam.id) : Promise.resolve(false),
+    user ? findEnrollment(user.id, exam.id) : Promise.resolve(null),
   ]);
 
-  const isEnrolled = user ? await canAccessExamination(user.id, exam.id) : false;
-  const isStudent = user?.role === "student" || user?.role === "admin";
+  const [subjects, tests] = isEnrolled
+    ? await Promise.all([
+        getSubjectsByExamId(examId),
+        getAllPublishedTests(exam.id),
+      ])
+    : [[], []];
 
   return (
     <div className="flex flex-col gap-8">
@@ -103,68 +108,46 @@ export default async function ExamDetailPage({ params }: ExamDetailPageProps) {
         </div>
       </div>
 
-      {/* Enrollment Callout Banner (shown if not currently enrolled) */}
-      {!isEnrolled && (
-        <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-surface to-surface p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-2xs">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider mb-1">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Full Preparation Track Access</span>
+      {/* Enrollment Gate or Authorized Curriculum Workspace */}
+      {!isEnrolled ? (
+        <EnrollmentAccessGate
+          examId={exam.id}
+          examTitle={exam.title}
+          examCode={exam.code}
+          enrollmentStatus={existingEnrollment?.status ?? null}
+          decisionNotes={existingEnrollment?.decisionNotes ?? null}
+          isAuthenticated={!!user}
+          userRole={user?.role ?? null}
+          callbackUrl={`/exams/${exam.id}`}
+          resourceLabel="subjects, topics, question banks, and diagnostic tests"
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-text-primary">
+                Subjects & Syllabus Breakdown
+              </h2>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Select a subject to view curriculum topics and high-yield question practice.
+              </p>
             </div>
-            <h2 className="text-lg sm:text-xl font-bold text-text-primary">
-              Enroll in {exam.code} Preparation Track
-            </h2>
-            <p className="text-xs sm:text-sm text-text-secondary mt-1 leading-relaxed">
-              Activate your syllabus workspace, unlock full question bank practice, and take timed diagnostic assessments under authentic exam conditions.
-            </p>
+            <span className="text-xs font-medium text-text-secondary bg-surface border border-border px-3 py-1 rounded-full">
+              {subjects.length} Subjects
+            </span>
           </div>
 
-          <div className="shrink-0">
-            {isStudent ? (
-              <EnrollExamButton
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {subjects.map((subject) => (
+              <SubjectCard
+                key={subject.id}
+                subject={subject}
                 examId={exam.id}
-                examCode={exam.code}
-                size="md"
-                variant="primary"
-                className="shadow-xs"
               />
-            ) : (
-              <Link href={`/login?callbackUrl=/exams/${exam.id}`}>
-                <Button size="md" rightIcon={<ArrowRight className="w-4 h-4" />}>
-                  Sign In to Enroll
-                </Button>
-              </Link>
-            )}
+            ))}
           </div>
         </div>
       )}
-
-      {/* Subjects Section */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-text-primary">
-              Subjects & Syllabus Breakdown
-            </h2>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Select a subject to view curriculum topics and high-yield question practice.
-            </p>
-          </div>
-          <span className="text-xs font-medium text-text-secondary bg-surface border border-border px-3 py-1 rounded-full">
-            {subjects.length} Subjects
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subjects.map((subject) => (
-            <SubjectCard
-              key={subject.id}
-              subject={subject}
-              examId={exam.id}
-            />
-          ))}
-        </div>
-      </div>
 
       {/* Tests Section (when enrolled) */}
       {isEnrolled && tests.length > 0 && (

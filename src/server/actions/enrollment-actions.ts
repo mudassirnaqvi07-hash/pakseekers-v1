@@ -1,21 +1,20 @@
 "use server";
 
 /**
- * Examination Enrollment Server Actions — PakSeekers.
- *
- * Provides authenticated student and admin server actions to manage multi-exam
- * enrollments.
+ * Examination Enrollment & Admin Approval Server Actions — PakSeekers.
  *
  * Security:
- * - Always re-verifies session identity server-side (never trusts client identity).
- * - Enforces role-based permissions.
- * - Idempotent execution.
+ * - Students can ONLY submit PENDING enrollment requests (never self-approve).
+ * - Only verified ADMIN accounts can Approve, Reject, or Revoke enrollments.
+ * - Staff and Students are strictly rejected from approval/revocation actions.
  */
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult, StudentEnrollment } from "@/types";
-import { getCurrentUser } from "@/server/auth/session";
+import { getCurrentUser, verifyAdminAuth } from "@/server/auth/session";
 import {
+  requestExamEnrollment,
+  decideStudentEnrollment,
   enrollStudent,
   removeEnrollment,
   canAccessExamination,
@@ -25,14 +24,27 @@ function safeRevalidate(path: string) {
   try {
     revalidatePath(path);
   } catch {
-    // Graceful handling outside active Next.js render cycle (e.g. tests or script invocations)
+    // Graceful outside Next.js request context
+  }
+}
+
+function revalidateEnrollmentPaths(examId: string, studentId?: string) {
+  safeRevalidate("/student/dashboard");
+  safeRevalidate("/student/tests");
+  safeRevalidate("/exams");
+  safeRevalidate(`/exams/${examId}`);
+  safeRevalidate("/tests");
+  safeRevalidate("/admin/enrollments");
+  safeRevalidate("/admin/students");
+  if (studentId) {
+    safeRevalidate(`/admin/students/${studentId}`);
   }
 }
 
 /**
- * Enrolls the currently authenticated student into an examination track.
+ * Student action: Submits a PENDING enrollment request for an examination.
  */
-export async function enrollInExamAction(
+export async function requestExamEnrollmentAction(
   examId: string
 ): Promise<ActionResult<StudentEnrollment>> {
   try {
@@ -40,56 +52,56 @@ export async function enrollInExamAction(
     if (!user) {
       return {
         success: false,
-        error: "You must be signed in to enroll in an examination track.",
+        error: "You must be signed in to apply for examination enrollment.",
       };
     }
 
     if ((user.status || "").toLowerCase() === "suspended") {
       return {
         success: false,
-        error: "Your account has been suspended by an administrator. You cannot enroll in examinations.",
+        error: "Your account has been suspended by an administrator.",
       };
     }
 
-    if (user.role !== "student" && user.role !== "admin") {
+    if (user.role !== "student") {
       return {
         success: false,
-        error: "Only student accounts can enroll in examination tracks.",
+        error: "Only student accounts can submit enrollment requests.",
       };
     }
 
     if (!examId || examId.trim() === "") {
-      return {
-        success: false,
-        error: "Valid examination ID is required.",
-      };
+      return { success: false, error: "Valid examination ID is required." };
     }
 
-    const result = await enrollStudent(user.id, examId.trim(), "FREE_SELECTION");
+    const result = await requestExamEnrollment(user.id, examId.trim(), "STUDENT_REQUEST");
     if (!result.success) {
       return result;
     }
 
-    // Refresh student dashboard and exam pages
-    safeRevalidate("/student/dashboard");
-    safeRevalidate("/student/tests");
-    safeRevalidate("/exams");
-    safeRevalidate(`/exams/${examId}`);
-    safeRevalidate(`/student/exams/${examId}`);
-
+    revalidateEnrollmentPaths(examId.trim(), user.id);
     return result;
   } catch (err) {
-    console.error("enrollInExamAction error:", err);
+    console.error("requestExamEnrollmentAction error:", err);
     return {
       success: false,
-      error: "An unexpected error occurred during enrollment. Please try again.",
+      error: "An unexpected error occurred while submitting your request.",
     };
   }
 }
 
 /**
- * Removes an examination from the current student's preparations.
- * Soft-removal: retains all historical attempts and analytics.
+ * Backward-compatible alias routed strictly through requestExamEnrollmentAction
+ * so students cannot bypass Admin approval.
+ */
+export async function enrollInExamAction(
+  examId: string
+): Promise<ActionResult<StudentEnrollment>> {
+  return requestExamEnrollmentAction(examId);
+}
+
+/**
+ * Student soft-removal of an existing approved track.
  */
 export async function removeExamEnrollmentAction(
   examId: string
@@ -111,24 +123,15 @@ export async function removeExamEnrollmentAction(
     }
 
     if (!examId || examId.trim() === "") {
-      return {
-        success: false,
-        error: "Valid examination ID is required.",
-      };
+      return { success: false, error: "Valid examination ID is required." };
     }
 
-    const result = await removeEnrollment(user.id, examId.trim());
+    const result = await removeEnrollment(user.id, examId.trim(), "REMOVED");
     if (!result.success) {
       return result;
     }
 
-    // Refresh affected pages
-    safeRevalidate("/student/dashboard");
-    safeRevalidate("/student/tests");
-    safeRevalidate("/exams");
-    safeRevalidate(`/exams/${examId}`);
-    safeRevalidate(`/student/exams/${examId}`);
-
+    revalidateEnrollmentPaths(examId.trim(), user.id);
     return result;
   } catch (err) {
     console.error("removeExamEnrollmentAction error:", err);
@@ -140,7 +143,7 @@ export async function removeExamEnrollmentAction(
 }
 
 /**
- * Checks if the currently authenticated student has active access to an examination.
+ * Checks whether the current user holds approved access to an exam.
  */
 export async function checkExamAccessAction(
   examId: string
@@ -158,39 +161,105 @@ export async function checkExamAccessAction(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Admin-Only Enrollment Confirmation & Lifecycle Actions
+// ---------------------------------------------------------------------------
+
+export async function approveEnrollmentAction(
+  studentId: string,
+  examId: string,
+  notes?: string
+): Promise<ActionResult<StudentEnrollment>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  const res = await decideStudentEnrollment(
+    studentId,
+    examId,
+    "APPROVED",
+    auth.user.id,
+    notes
+  );
+  if (res.success) {
+    revalidateEnrollmentPaths(examId, studentId);
+  }
+  return res;
+}
+
+export async function rejectEnrollmentAction(
+  studentId: string,
+  examId: string,
+  notes?: string
+): Promise<ActionResult<StudentEnrollment>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  const res = await decideStudentEnrollment(
+    studentId,
+    examId,
+    "REJECTED",
+    auth.user.id,
+    notes
+  );
+  if (res.success) {
+    revalidateEnrollmentPaths(examId, studentId);
+  }
+  return res;
+}
+
+export async function revokeEnrollmentAction(
+  studentId: string,
+  examId: string,
+  notes?: string
+): Promise<ActionResult<StudentEnrollment>> {
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
+
+  const res = await decideStudentEnrollment(
+    studentId,
+    examId,
+    "REVOKED",
+    auth.user.id,
+    notes
+  );
+  if (res.success) {
+    revalidateEnrollmentPaths(examId, studentId);
+  }
+  return res;
+}
+
 /**
- * Administrative action: Manage enrollment status for any student.
+ * Administrative action: Grant or revoke enrollment status for any student.
  */
 export async function adminUpdateStudentEnrollmentAction(
   studentId: string,
   examId: string,
-  status: "ACTIVE" | "REMOVED"
+  status: "ACTIVE" | "APPROVED" | "REMOVED" | "REVOKED",
+  notes?: string
 ): Promise<ActionResult<void>> {
-  try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser || currentUser.role !== "admin") {
-      return {
-        success: false,
-        error: "Administrative privileges are required to manage student enrollments.",
-      };
-    }
+  const auth = await verifyAdminAuth();
+  if ("error" in auth) return auth.error;
 
-    if (status === "ACTIVE") {
-      const res = await enrollStudent(studentId, examId, "ADMIN_GRANTED");
+  try {
+    if (status === "ACTIVE" || status === "APPROVED") {
+      const res = await enrollStudent(studentId, examId, "ADMIN_GRANTED", auth.user.id);
       if (!res.success) {
         return { success: false, error: res.error };
       }
     } else {
-      const res = await removeEnrollment(studentId, examId);
+      const res = await decideStudentEnrollment(
+        studentId,
+        examId,
+        "REVOKED",
+        auth.user.id,
+        notes
+      );
       if (!res.success) {
         return { success: false, error: res.error };
       }
     }
 
-    safeRevalidate(`/admin/students/${studentId}`);
-    safeRevalidate("/admin/students");
-    safeRevalidate("/student/dashboard");
-
+    revalidateEnrollmentPaths(examId, studentId);
     return { success: true, data: undefined };
   } catch (err) {
     console.error("adminUpdateStudentEnrollmentAction error:", err);

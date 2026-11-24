@@ -31,6 +31,7 @@ interface QuestionFormProps {
   defaultTopicId?: string;
   onSubmit: (data: Omit<Question, "id" | "createdAt" | "updatedAt">) => Promise<ActionResult<Question>>;
   isEdit?: boolean;
+  basePath?: string;
 }
 
 export function QuestionForm({
@@ -43,6 +44,7 @@ export function QuestionForm({
   defaultTopicId,
   onSubmit,
   isEdit = false,
+  basePath = "/admin",
 }: QuestionFormProps) {
   const router = useRouter();
 
@@ -216,7 +218,7 @@ export function QuestionForm({
 
       const res = await onSubmit(payload);
       if (res.success) {
-        router.push("/admin/questions");
+        router.push(`${basePath}/questions`);
         router.refresh();
       } else {
         setErrorMessage(res.error);

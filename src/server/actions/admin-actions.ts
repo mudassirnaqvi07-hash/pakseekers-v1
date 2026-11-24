@@ -19,32 +19,11 @@ import type {
   UserDeviceSession,
   UserStatus,
 } from "@/types";
-import { getCurrentUser } from "@/server/auth/session";
+import { verifyAdminAuth, verifyPermissionAuth } from "@/server/auth/session";
 import * as userRepo from "@/server/repositories/user-repository";
 import * as userService from "@/server/services/user-service";
 import * as reportRepo from "@/server/repositories/report-repository";
 import * as settingsRepo from "@/server/repositories/settings-repository";
-
-async function verifyAdminAuth(): Promise<{ user: SafeUser } | { error: ActionResult<never> }> {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "admin") {
-    return {
-      error: {
-        success: false,
-        error: "Unauthorized: Administrator privileges are required to perform this action.",
-      },
-    };
-  }
-  if ((user.status || "").toLowerCase() === "suspended") {
-    return {
-      error: {
-        success: false,
-        error: "Unauthorized: Your administrator account has been suspended.",
-      },
-    };
-  }
-  return { user };
-}
 
 // ---------------------------------------------------------------------------
 // Student Account Actions
@@ -54,7 +33,8 @@ export async function updateStudentStatusAction(
   studentId: string,
   status: UserStatus
 ): Promise<ActionResult<SafeUser>> {
-  const auth = await verifyAdminAuth();
+  const requiredPerm = status === "suspended" ? "STUDENT_SUSPEND" : "STUDENT_REACTIVATE";
+  const auth = await verifyPermissionAuth(requiredPerm, { allowedRoles: ["admin", "staff"] });
   if ("error" in auth) return auth.error;
 
   if (!studentId || typeof studentId !== "string" || !studentId.trim()) {
@@ -105,7 +85,7 @@ export async function updateStudentStatusAction(
 export async function deleteStudentAccountAction(
   studentId: string
 ): Promise<ActionResult<{ studentId: string }>> {
-  const auth = await verifyAdminAuth();
+  const auth = await verifyPermissionAuth("STUDENT_DELETE", { allowedRoles: ["admin", "staff"] });
   if ("error" in auth) return auth.error;
 
   if (!studentId || typeof studentId !== "string" || !studentId.trim()) {

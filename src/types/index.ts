@@ -53,6 +53,7 @@ export type {
 } from "./content";
 
 export type {
+  Permission,
   SafeUser,
   StudentDashboardStats,
   StudentProfile,

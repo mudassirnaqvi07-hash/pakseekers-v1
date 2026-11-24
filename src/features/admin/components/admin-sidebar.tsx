@@ -24,6 +24,7 @@ import {
   LayoutDashboard,
   Layers,
   Settings,
+  ShieldCheck,
   Timer,
   Users,
   FileCode2,
@@ -78,12 +79,14 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Users",
     items: [
       { label: "Students", href: "/admin/students", icon: Users },
+      { label: "Enrollments", href: "/admin/enrollments", icon: ShieldCheck },
+      { label: "Staff & Permissions", href: "/admin/staff", icon: ShieldCheck },
     ],
   },
   {
     label: "Reports",
     items: [
-      { label: "Reports", href: "/admin/reports", icon: BarChart2 },
+      { label: "Analytics", href: "/admin/analytics", icon: BarChart2 },
       {
         label: "Question Reports",
         href: "/admin/question-reports",

@@ -16,6 +16,7 @@ import type {
   ExaminationSettings,
   GeneralSettings,
   LessonStatus,
+  Permission,
   PlatformConfigSettings,
   QuestionDifficulty,
   QuestionOption,
@@ -31,6 +32,7 @@ import type {
   UserRole,
   UserStatus,
 } from "@/types";
+import { getEffectivePermissions, normalizeUserRole } from "@/lib/auth/permissions";
 
 // ---------------------------------------------------------------------------
 // Collection Name Constants
@@ -66,6 +68,10 @@ export interface UserDoc extends Document {
   name: string;
   role: UserRole;
   status?: UserStatus;
+  permissions?: Permission[];
+  staffTitle?: string;
+  department?: string;
+  createdBy?: string;
   passwordHash: string;
   isEmailVerified?: boolean;
   emailVerificationTokenHash?: string | null;
@@ -146,6 +152,10 @@ export interface StudentEnrollmentDoc extends Document {
   examinationId: string;
   status: EnrollmentStatus;
   enrollmentSource: EnrollmentSource;
+  requestedAt?: string;
+  decisionAt?: string | null;
+  approvedBy?: string | null;
+  decisionNotes?: string | null;
   enrolledAt: string;
   removedAt?: string | null;
   createdAt: string;
@@ -312,6 +322,8 @@ export function toSafeUser(doc: Record<string, unknown> | null | undefined): Saf
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { _id, passwordHash, emailVerificationTokenHash, otpCodeHash, ...rest } = doc;
   const user = rest as SafeUser;
+  user.role = normalizeUserRole(user.role);
+  user.permissions = getEffectivePermissions(user);
   if (user.profile) {
     user.phone = user.phone || user.profile.phone;
     user.targetExam = user.targetExam || user.profile.targetExam;

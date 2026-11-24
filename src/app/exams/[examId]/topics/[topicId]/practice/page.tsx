@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, ArrowLeft, Lock } from "lucide-react";
+import { ChevronRight, ArrowLeft } from "lucide-react";
 import {
   getExamById,
   getTopicById,
@@ -11,9 +11,10 @@ import {
   getQuestionsByIds,
 } from "@/server/services/content-service";
 import { canAccessExamination } from "@/server/services/enrollment-service";
-import { EnrollExamButton } from "@/features/exams/components/enroll-exam-button";
+import { findEnrollment } from "@/server/repositories/enrollment-repository";
+import { EnrollmentAccessGate } from "@/features/exams/components/enrollment-access-gate";
 import { QuizEngine } from "@/features/practice/components/quiz-engine";
-import { Button, Badge } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { requireStudent } from "@/server/auth/session";
 
 interface PracticePageProps {
@@ -63,43 +64,26 @@ export default async function PracticePage({
   }`;
   const student = await requireStudent(returnPath);
 
-  // Authoritative Access Enforcement: Verify student has active enrollment for this exam
+  // Authoritative Access Enforcement: Verify student has approved enrollment for this exam
   const hasAccess = await canAccessExamination(student.id, examId);
   if (!hasAccess) {
-    const exam = await getExamById(examId);
+    const [exam, existingEnrollment] = await Promise.all([
+      getExamById(examId),
+      findEnrollment(student.id, examId),
+    ]);
     return (
       <div className="max-w-2xl mx-auto py-12 px-4 sm:px-6">
-        <div className="rounded-xl border border-border bg-surface p-6 sm:p-8 text-center flex flex-col items-center gap-4 shadow-sm">
-          <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-            <Lock className="w-7 h-7" />
-          </div>
-          <div>
-            <Badge variant="warning" className="mb-2">
-              Enrollment Required
-            </Badge>
-            <h1 className="text-xl sm:text-2xl font-bold text-text-primary">
-              Enroll in {exam?.code || "Examination"} to Practice This Topic
-            </h1>
-            <p className="text-sm text-text-secondary mt-2 max-w-md mx-auto leading-relaxed">
-              Curriculum topic practice quizzes and diagnostic tests are reserved for students actively enrolled in this preparation track.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-3 mt-3 w-full sm:w-auto">
-            <EnrollExamButton
-              examId={examId}
-              examCode={exam?.code}
-              size="md"
-              variant="primary"
-              className="w-full sm:w-auto justify-center"
-            />
-            <Link href="/exams" className="w-full sm:w-auto">
-              <Button variant="outline" size="md" className="w-full sm:w-auto justify-center">
-                Browse All Exams
-              </Button>
-            </Link>
-          </div>
-        </div>
+        <EnrollmentAccessGate
+          examId={examId}
+          examTitle={exam?.title}
+          examCode={exam?.code}
+          enrollmentStatus={existingEnrollment?.status ?? null}
+          decisionNotes={existingEnrollment?.decisionNotes ?? null}
+          isAuthenticated={true}
+          userRole={student.role}
+          callbackUrl={`/exams/${examId}/topics/${topicId}/practice`}
+          resourceLabel="topic practice quizzes and curriculum tests"
+        />
       </div>
     );
   }

@@ -28,6 +28,8 @@ export default async function StudentRegisterPage({
         redirect(callbackUrl!.trim());
       }
       redirect("/student/dashboard");
+    } else if (user.role === "staff") {
+      redirect("/staff/dashboard");
     } else if (user.role === "admin") {
       redirect("/admin/dashboard");
     }
